@@ -3,33 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>@yield('title', 'Cleanify') | Cleanify</title>
-  
+  <title>@yield('title', 'Admin') | Cleanify Admin</title>
   @vite(['resources/css/app.css', 'resources/js/app.js'])
-  
   @stack('styles')
 </head>
-<body class="bg-gray-50 overflow-hidden" style="font-family: 'Poppins', sans-serif;">
+<body class="bg-gray-50 overflow-x-hidden" style="font-family: 'Poppins', sans-serif;">
   <!-- Mobile Menu -->
-  <x-mobile-menu :active="$activePage ?? 'home'" />
+  <x-admin.mobile-menu :active="$activePage ?? 'dashboard'" />
   
   <div class="flex h-screen">
-    <!-- Sidebar -->
-    <x-sidebar :active="$activePage ?? 'home'" />
-    
-    <!-- Main Content -->
+    <x-admin.sidebar :active="$activePage ?? 'dashboard'" />
+
     <div class="lg:ml-64 flex-1 overflow-y-auto">
-      <div class="p-4 lg:p-6">
+      <div class="p-4 lg:p-8">
         @yield('content')
       </div>
     </div>
   </div>
-  
-  <!-- Modals -->
+
   @stack('modals')
-  
-  <!-- Scripts -->
   @stack('scripts')
   @vite(['resources/js/app.js'])
 </body>
 </html>
+

@@ -1,6 +1,6 @@
 @props(['active' => 'home'])
 
-<div class="w-64 bg-green-600 text-white flex flex-col justify-between fixed h-full">
+<div class="hidden lg:block w-64 bg-green-600 text-white flex flex-col justify-between fixed h-full">
   <div>
     <!-- Logo Section -->
     <div class="text-center py-6 border-b border-green-500">
@@ -35,7 +35,7 @@
         <span>Community Reports</span>
       </a>
       
-      <a href="{{ route('profile.edit') }}" class="flex items-center px-4 py-3 rounded-lg text-white transition-colors duration-300 {{ $active === 'profile' ? 'bg-green-700' : 'hover:bg-green-700' }}">
+      <a href="{{ route('profile') }}" class="flex items-center px-4 py-3 rounded-lg text-white transition-colors duration-300 {{ $active === 'profile' ? 'bg-green-700' : 'hover:bg-green-700' }}">
         <i class="fas fa-user-circle mr-3 text-lg"></i>
         <span>Profile</span>
       </a>
