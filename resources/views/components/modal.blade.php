@@ -6,6 +6,7 @@ $colorClasses = [
     'red' => 'bg-red-600',
     'blue' => 'bg-blue-600',
     'yellow' => 'bg-yellow-600',
+    'purple' => 'bg-purple-600',
 ];
 $headerClass = $colorClasses[$color] ?? 'bg-green-600';
 @endphp

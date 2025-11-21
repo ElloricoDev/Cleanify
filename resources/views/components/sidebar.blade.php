@@ -48,7 +48,13 @@
   </div>
 
   <!-- Footer -->
-  <div class="p-4 text-center border-t border-green-500">
-    <small>&copy; 2025 Cleanify</small>
+  <div class="p-4 border-t border-green-500">
+    <button onclick="openModal('logoutModal')" class="w-full flex items-center justify-center px-4 py-3 rounded-lg text-white bg-red-600 hover:bg-red-700 transition-colors duration-300 mb-3">
+      <i class="fas fa-sign-out-alt mr-2"></i>
+      <span>Logout</span>
+    </button>
+    <div class="text-center">
+      <small class="text-gray-200">&copy; 2025 Cleanify</small>
+    </div>
   </div>
 </div>

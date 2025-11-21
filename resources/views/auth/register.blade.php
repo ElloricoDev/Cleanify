@@ -5,6 +5,7 @@
     <div class="text-3xl font-extrabold text-green-500 text-center tracking-wide mb-1">CLEANIFY</div>
     <p class="text-gray-300 italic text-center text-sm mb-6">One Click. One Report. One Clean Community.</p>
 
+
     <form method="POST" action="{{ route('register') }}" class="space-y-6">
       @csrf
       <div>
@@ -15,10 +16,18 @@
             type="text"
             id="name"
             name="name"
-            class="w-full bg-transparent border-0 border-b border-gray-400 text-white pl-10 pb-2 focus:outline-none focus:border-green-500"
+            value="{{ old('name') }}"
+            class="w-full bg-transparent border-0 border-b {{ $errors->has('name') ? 'border-red-500' : 'border-gray-400' }} text-white pl-10 pb-2 focus:outline-none focus:border-green-500 transition-colors duration-300"
             required
+            autofocus
+            autocomplete="name"
           >
         </div>
+        @error('name')
+          <p class="mt-2 text-sm text-red-400 font-semibold flex items-center">
+            <i class="fas fa-exclamation-circle mr-2"></i>{{ $message }}
+          </p>
+        @enderror
       </div>
 
       <div>
@@ -29,10 +38,17 @@
             type="email"
             id="email"
             name="email"
-            class="w-full bg-transparent border-0 border-b border-gray-400 text-white pl-10 pb-2 focus:outline-none focus:border-green-500"
+            value="{{ old('email') }}"
+            class="w-full bg-transparent border-0 border-b {{ $errors->has('email') ? 'border-red-500' : 'border-gray-400' }} text-white pl-10 pb-2 focus:outline-none focus:border-green-500 transition-colors duration-300"
             required
+            autocomplete="email"
           >
         </div>
+        @error('email')
+          <p class="mt-2 text-sm text-red-400 font-semibold flex items-center">
+            <i class="fas fa-exclamation-circle mr-2"></i>{{ $message }}
+          </p>
+        @enderror
       </div>
 
       <div>
@@ -43,10 +59,16 @@
             type="password"
             id="password"
             name="password"
-            class="w-full bg-transparent border-0 border-b border-gray-400 text-white pl-10 pb-2 focus:outline-none focus:border-green-500"
+            class="w-full bg-transparent border-0 border-b {{ $errors->has('password') ? 'border-red-500' : 'border-gray-400' }} text-white pl-10 pb-2 focus:outline-none focus:border-green-500 transition-colors duration-300"
             required
+            autocomplete="new-password"
           >
         </div>
+        @error('password')
+          <p class="mt-2 text-sm text-red-400 font-semibold flex items-center">
+            <i class="fas fa-exclamation-circle mr-2"></i>{{ $message }}
+          </p>
+        @enderror
       </div>
 
       <div>
@@ -57,10 +79,16 @@
             type="password"
             id="password_confirmation"
             name="password_confirmation"
-            class="w-full bg-transparent border-0 border-b border-gray-400 text-white pl-10 pb-2 focus:outline-none focus:border-green-500"
+            class="w-full bg-transparent border-0 border-b {{ $errors->has('password_confirmation') ? 'border-red-500' : 'border-gray-400' }} text-white pl-10 pb-2 focus:outline-none focus:border-green-500 transition-colors duration-300"
             required
+            autocomplete="new-password"
           >
         </div>
+        @error('password_confirmation')
+          <p class="mt-2 text-sm text-red-400 font-semibold flex items-center">
+            <i class="fas fa-exclamation-circle mr-2"></i>{{ $message }}
+          </p>
+        @enderror
       </div>
 
       <button type="submit" class="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-2.5 rounded-md transition-colors duration-300 inline-flex items-center justify-center gap-2">

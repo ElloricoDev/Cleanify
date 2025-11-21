@@ -5,6 +5,12 @@
     <div class="text-3xl font-extrabold text-green-500 text-center tracking-wide mb-1">CLEANIFY</div>
     <p class="text-gray-300 italic text-center text-sm mb-6">One Click. One Report. One Clean Community.</p>
 
+    @if(session('status'))
+      <x-alert type="success" dismissible class="mb-4">
+        {{ session('status') }}
+      </x-alert>
+    @endif
+
     <form method="POST" action="{{ route('login') }}" class="space-y-6">
       @csrf
       <div>
@@ -15,10 +21,18 @@
             type="email"
             id="email"
             name="email"
-            class="w-full bg-transparent border-0 border-b border-gray-400 text-white pl-10 pb-2 focus:outline-none focus:border-green-500"
+            value="{{ old('email') }}"
+            class="w-full bg-transparent border-0 border-b {{ $errors->has('email') ? 'border-red-500' : 'border-gray-400' }} text-white pl-10 pb-2 focus:outline-none focus:border-green-500 transition-colors duration-300"
             required
+            autofocus
+            autocomplete="email"
           >
         </div>
+        @error('email')
+          <p class="mt-2 text-sm text-red-400 font-semibold flex items-center">
+            <i class="fas fa-exclamation-circle mr-2"></i>{{ $message }}
+          </p>
+        @enderror
       </div>
 
       <div>
@@ -29,10 +43,28 @@
             type="password"
             id="password"
             name="password"
-            class="w-full bg-transparent border-0 border-b border-gray-400 text-white pl-10 pb-2 focus:outline-none focus:border-green-500"
+            class="w-full bg-transparent border-0 border-b {{ $errors->has('password') ? 'border-red-500' : 'border-gray-400' }} text-white pl-10 pb-2 focus:outline-none focus:border-green-500 transition-colors duration-300"
             required
+            autocomplete="current-password"
           >
         </div>
+        @error('password')
+          <p class="mt-2 text-sm text-red-400 font-semibold flex items-center">
+            <i class="fas fa-exclamation-circle mr-2"></i>{{ $message }}
+          </p>
+        @enderror
+      </div>
+
+      <div class="flex items-center">
+        <input
+          type="checkbox"
+          id="remember"
+          name="remember"
+          value="1"
+          {{ old('remember') ? 'checked' : '' }}
+          class="w-4 h-4 text-green-600 bg-transparent border-gray-400 rounded focus:ring-green-500 focus:ring-2"
+        >
+        <label for="remember" class="ml-2 text-sm text-gray-300 cursor-pointer">Remember me</label>
       </div>
 
       <button type="submit" class="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-2.5 rounded-md transition-colors duration-300 inline-flex items-center justify-center gap-2">

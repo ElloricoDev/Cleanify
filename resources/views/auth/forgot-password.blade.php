@@ -6,7 +6,13 @@
     <p class="text-gray-300 italic text-center text-sm mb-6">One Click. One Report. One Clean Community.</p>
 
     <h5 class="text-white text-xl font-semibold text-center mb-3">Forgot Password</h5>
-    <p class="text-gray-300 text-center mb-6">Enter your email address and we'll send you an OTP to reset your password.</p>
+    <p class="text-gray-300 text-center mb-6">Enter your email address and we'll send you a password reset link.</p>
+
+    @if(session('status'))
+      <x-alert type="success" dismissible class="mb-4">
+        {{ session('status') }}
+      </x-alert>
+    @endif
 
     <form method="POST" action="{{ route('password.email') }}" class="space-y-6">
       @csrf
@@ -18,14 +24,23 @@
             type="email"
             id="email"
             name="email"
-            class="w-full bg-transparent border-0 border-b border-gray-400 text-white pl-10 pb-2 focus:outline-none focus:border-green-500"
+            value="{{ old('email') }}"
+            class="w-full bg-transparent border-0 border-b {{ $errors->has('email') ? 'border-red-500' : 'border-gray-400' }} text-white pl-10 pb-2 focus:outline-none focus:border-green-500 transition-colors duration-300"
             required
+            autofocus
+            autocomplete="email"
           >
         </div>
+        @error('email')
+          <p class="mt-2 text-sm text-red-400 font-semibold flex items-center">
+            <i class="fas fa-exclamation-circle mr-2"></i>{{ $message }}
+          </p>
+        @enderror
       </div>
 
-      <button type="submit" class="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-2.5 rounded-md transition-colors duration-300">
-        SEND OTP
+      <button type="submit" class="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-2.5 rounded-md transition-colors duration-300 inline-flex items-center justify-center gap-2">
+        <i class="fas fa-paper-plane"></i>
+        SEND RESET LINK
       </button>
     </form>
 
