@@ -3,6 +3,12 @@
 @section('title', 'Schedule')
 
 @section('content')
+  @if(session('success'))
+    <x-alert type="success" dismissible class="mb-4">
+      {{ session('success') }}
+    </x-alert>
+  @endif
+
   <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
     <div>
       <h2 class="text-3xl font-bold text-gray-800">
@@ -11,34 +17,21 @@
       <p class="text-gray-600 mt-1">Manage garbage collection schedules for different areas</p>
     </div>
     <div class="flex w-full lg:w-auto max-w-lg">
-      <input id="scheduleSearchInput" type="text" class="flex-1 px-4 py-2 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="Search schedule...">
-      <button onclick="filterSchedules()" class="px-4 bg-green-600 text-white rounded-r-lg hover:bg-green-700 transition-colors duration-300">
-        <i class="fas fa-search"></i>
-      </button>
+      <form action="{{ route('admin.schedule') }}" method="GET" class="flex w-full">
+        <input id="scheduleSearchInput" type="text" name="search" value="{{ $search }}" class="flex-1 px-4 py-2 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="Search schedule...">
+        <button type="submit" class="px-4 bg-green-600 text-white rounded-r-lg hover:bg-green-700 transition-colors duration-300">
+          <i class="fas fa-search"></i>
+        </button>
+      </form>
     </div>
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-    <x-admin.stat-card icon="fas fa-calendar-check" title="Active Schedules" value="3" />
-    <x-admin.stat-card icon="fas fa-truck" title="Trucks Assigned" value="5" borderClass="border-l-4 border-blue-500" iconWrapperClass="bg-blue-100" iconColorClass="text-blue-600" />
-    <x-admin.stat-card icon="fas fa-clock" title="Pending Schedules" value="1" borderClass="border-l-4 border-yellow-500" iconWrapperClass="bg-yellow-100" iconColorClass="text-yellow-600" />
-    <x-admin.stat-card icon="fas fa-calendar-times" title="Inactive Schedules" value="1" borderClass="border-l-4 border-red-500" iconWrapperClass="bg-red-100" iconColorClass="text-red-600" />
+    <x-admin.stat-card icon="fas fa-calendar-check" title="Active Schedules" value="{{ $activeSchedules }}" />
+    <x-admin.stat-card icon="fas fa-truck" title="Trucks Assigned" value="{{ $trucksAssigned }}" borderClass="border-l-4 border-blue-500" iconWrapperClass="bg-blue-100" iconColorClass="text-blue-600" />
+    <x-admin.stat-card icon="fas fa-clock" title="Pending Schedules" value="{{ $pendingSchedules }}" borderClass="border-l-4 border-yellow-500" iconWrapperClass="bg-yellow-100" iconColorClass="text-yellow-600" />
+    <x-admin.stat-card icon="fas fa-calendar-times" title="Inactive Schedules" value="{{ $inactiveSchedules }}" borderClass="border-l-4 border-red-500" iconWrapperClass="bg-red-100" iconColorClass="text-red-600" />
   </div>
-
-  @php
-    $schedules = [
-      ['id'=>1,'area'=>'Barangay Lakandula','days'=>'Monday & Thursday','time'=>'6:00 AM - 9:00 AM','truck'=>'Truck 01','status'=>'Active'],
-      ['id'=>2,'area'=>'Purok 3','days'=>'Tuesday & Friday','time'=>'7:00 AM - 10:00 AM','truck'=>'Truck 02','status'=>'Active'],
-      ['id'=>3,'area'=>'Zone 5','days'=>'Wednesday','time'=>'8:00 AM - 11:00 AM','truck'=>'Truck 03','status'=>'Pending'],
-      ['id'=>4,'area'=>'Purok 1','days'=>'Saturday','time'=>'6:30 AM - 9:30 AM','truck'=>'Truck 04','status'=>'Active'],
-      ['id'=>5,'area'=>'Purok 6','days'=>'Sunday','time'=>'7:00 AM - 10:00 AM','truck'=>'Truck 05','status'=>'Inactive'],
-    ];
-    $statusBadge = [
-      'Active' => 'bg-green-100 text-green-800',
-      'Pending' => 'bg-yellow-100 text-yellow-800',
-      'Inactive' => 'bg-red-100 text-red-800',
-    ];
-  @endphp
 
   <div class="bg-white rounded-xl shadow-sm overflow-hidden">
     <div class="p-4 flex justify-between items-center">
@@ -58,52 +51,70 @@
           </tr>
         </thead>
         <tbody id="scheduleTableBody" class="divide-y divide-gray-200">
-          @foreach ($schedules as $schedule)
-            <tr class="hover:bg-gray-50 transition-colors duration-200" data-schedule="{{ json_encode($schedule) }}">
-              <td class="px-4 py-3">{{ $schedule['id'] }}</td>
-              <td class="px-4 py-3 font-medium text-gray-900">{{ $schedule['area'] }}</td>
-              <td class="px-4 py-3 text-gray-600">{{ $schedule['days'] }}</td>
-              <td class="px-4 py-3 text-gray-600">{{ $schedule['time'] }}</td>
-              <td class="px-4 py-3 text-gray-600">{{ $schedule['truck'] }}</td>
+          @forelse ($schedules as $schedule)
+            <tr class="hover:bg-gray-50 transition-colors duration-200" data-schedule="{{ json_encode([
+              'id' => $schedule->id,
+              'area' => $schedule->area,
+              'days' => $schedule->days,
+              'time_start' => $schedule->time_start->format('H:i'),
+              'time_end' => $schedule->time_end->format('H:i'),
+              'truck' => $schedule->truck,
+              'status' => $schedule->status,
+            ]) }}">
+              <td class="px-4 py-3">{{ $schedule->id }}</td>
+              <td class="px-4 py-3 font-medium text-gray-900">{{ $schedule->area }}</td>
+              <td class="px-4 py-3 text-gray-600">{{ $schedule->days }}</td>
+              <td class="px-4 py-3 text-gray-600">{{ $schedule->time_range }}</td>
+              <td class="px-4 py-3 text-gray-600">{{ $schedule->truck }}</td>
               <td class="px-4 py-3">
-                <span class="{{ $statusBadge[$schedule['status']] ?? 'bg-gray-100 text-gray-800' }} text-xs font-medium px-2.5 py-0.5 rounded-full">
-                  <i class="fas fa-circle text-xs mr-1"></i>{{ $schedule['status'] }}
+                <span class="{{ $schedule->getStatusBadgeClass() }} text-xs font-medium px-2.5 py-0.5 rounded-full">
+                  <i class="fas fa-circle text-xs mr-1"></i>{{ $schedule->formatted_status }}
                 </span>
               </td>
               <td class="px-4 py-3">
                 <div class="flex space-x-2">
-                  <button onclick="openEditScheduleModal({{ $schedule['id'] }})" class="w-8 h-8 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors duration-300">
+                  <button onclick="openEditScheduleModal({{ $schedule->id }})" class="w-8 h-8 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors duration-300" title="Edit">
                     <i class="fas fa-edit text-xs"></i>
                   </button>
-                  <button onclick="openDeleteScheduleModal({{ $schedule['id'] }})" class="w-8 h-8 bg-red-500 text-white rounded hover:bg-red-600 transition-colors duration-300">
+                  <button onclick="openDeleteScheduleModal({{ $schedule->id }})" class="w-8 h-8 bg-red-500 text-white rounded hover:bg-red-600 transition-colors duration-300" title="Delete">
                     <i class="fas fa-trash text-xs"></i>
                   </button>
                 </div>
               </td>
             </tr>
-          @endforeach
+          @empty
+            <tr>
+              <td colspan="7" class="px-4 py-8 text-center text-gray-500">
+                <i class="fas fa-calendar-alt text-4xl mb-2 block"></i>
+                No schedules found
+              </td>
+            </tr>
+          @endforelse
         </tbody>
       </table>
     </div>
 
     <div class="px-6 py-4 border-t border-gray-200">
-      <nav class="flex justify-between items-center">
-        <div class="text-sm text-gray-600">Showing 1 to 5 of 5 entries</div>
-        <ul class="flex space-x-2">
-          <li><button class="px-3 py-1 text-gray-500 bg-gray-100 rounded cursor-not-allowed"><i class="fas fa-chevron-left mr-1"></i>Previous</button></li>
-          <li><button class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors duration-300">1</button></li>
-          <li><button class="px-3 py-1 text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors duration-300">2</button></li>
-          <li><button class="px-3 py-1 text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors duration-300">3</button></li>
-          <li><button class="px-3 py-1 text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors duration-300">Next<i class="fas fa-chevron-right ml-1"></i></button></li>
-        </ul>
-      </nav>
+      <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div class="text-sm text-gray-600">
+          @if($schedules->total() > 0)
+            Showing {{ $schedules->firstItem() }} to {{ $schedules->lastItem() }} of {{ $schedules->total() }} entries
+          @else
+            No entries found
+          @endif
+        </div>
+        <div class="flex items-center">
+          {{ $schedules->appends(['search' => $search, 'status' => $statusFilter])->links('pagination::tailwind') }}
+        </div>
+      </div>
     </div>
   </div>
 @endsection
 
 @push('modals')
   <x-modal id="addScheduleModal" title="Add Schedule" icon="fas fa-plus-circle" color="green">
-    <form id="addScheduleForm" class="space-y-4">
+    <form id="addScheduleForm" method="POST" action="{{ route('admin.schedule.store') }}" class="space-y-4">
+      @csrf
       @foreach ([
         ['label' => 'Barangay / Zone', 'icon' => 'fas fa-map-marker-alt', 'name' => 'area', 'type' => 'text', 'placeholder' => 'Enter location'],
       ] as $field)
@@ -149,8 +160,8 @@
           <i class="fas fa-circle mr-2 text-green-600"></i>Status
         </label>
         <select name="status" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
-          @foreach (['Active','Pending','Inactive'] as $status)
-            <option value="{{ $status }}">{{ $status }}</option>
+          @foreach (['active','pending','inactive'] as $status)
+            <option value="{{ $status }}">{{ ucfirst($status) }}</option>
           @endforeach
         </select>
       </div>
@@ -160,47 +171,61 @@
         <button onclick="closeModal('addScheduleModal')" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-300">
           <i class="fas fa-times mr-2"></i>Cancel
         </button>
-        <button onclick="saveNewSchedule()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-300">
+        <button type="submit" form="addScheduleForm" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-300">
           <i class="fas fa-save mr-2"></i>Save Schedule
         </button>
       </div>
     @endslot
   </x-modal>
 
-  <x-modal id="editScheduleModal" title="Edit Schedule" icon="fas fa-edit" color="green">
-    <form id="editScheduleForm" class="space-y-4">
-      <input type="hidden" name="id">
+  <x-modal id="editScheduleModal" title="Edit Schedule" icon="fas fa-edit" color="blue">
+    <form id="editScheduleForm" method="POST" class="space-y-4">
+      @csrf
+      @method('PUT')
+      <input type="hidden" name="id" id="editScheduleId">
       <div>
         <label class="block text-gray-700 mb-2">
           <i class="fas fa-map-marker-alt mr-2 text-blue-600"></i>Barangay / Zone
         </label>
-        <input type="text" name="area" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+        <input type="text" name="area" id="editScheduleArea" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
       </div>
       <div>
         <label class="block text-gray-700 mb-2">
           <i class="fas fa-calendar-day mr-2 text-blue-600"></i>Collection Days
         </label>
-        <input type="text" name="days" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+        <select name="days" id="editScheduleDays" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          @foreach (['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday','Monday & Thursday','Tuesday & Friday'] as $option)
+            <option value="{{ $option }}">{{ $option }}</option>
+          @endforeach
+        </select>
       </div>
       <div>
         <label class="block text-gray-700 mb-2">
           <i class="fas fa-clock mr-2 text-blue-600"></i>Collection Time
         </label>
-        <input type="text" name="time" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+        <div class="flex space-x-2">
+          <input type="time" name="time_start" id="editScheduleTimeStart" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          <span class="self-center">to</span>
+          <input type="time" name="time_end" id="editScheduleTimeEnd" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+        </div>
       </div>
       <div>
         <label class="block text-gray-700 mb-2">
           <i class="fas fa-truck mr-2 text-blue-600"></i>Truck Assigned
         </label>
-        <input type="text" name="truck" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+        <select name="truck" id="editScheduleTruck" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          @foreach (['Truck 01','Truck 02','Truck 03','Truck 04','Truck 05'] as $truck)
+            <option value="{{ $truck }}">{{ $truck }}</option>
+          @endforeach
+        </select>
       </div>
       <div>
         <label class="block text-gray-700 mb-2">
           <i class="fas fa-circle mr-2 text-blue-600"></i>Status
         </label>
-        <select name="status" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-          @foreach (['Active','Pending','Inactive'] as $status)
-            <option value="{{ $status }}">{{ $status }}</option>
+        <select name="status" id="editScheduleStatus" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          @foreach (['active','pending','inactive'] as $status)
+            <option value="{{ $status }}">{{ ucfirst($status) }}</option>
           @endforeach
         </select>
       </div>
@@ -210,7 +235,7 @@
         <button onclick="closeModal('editScheduleModal')" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-300">
           <i class="fas fa-times mr-2"></i>Cancel
         </button>
-        <button onclick="saveScheduleChanges()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-300">
+        <button type="submit" form="editScheduleForm" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-300">
           <i class="fas fa-save mr-2"></i>Save Changes
         </button>
       </div>
@@ -234,72 +259,73 @@
         <button onclick="closeModal('deleteScheduleModal')" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-300">
           <i class="fas fa-times mr-2"></i>Cancel
         </button>
-        <button onclick="confirmDeleteSchedule()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-300">
-          <i class="fas fa-trash mr-2"></i>Delete Schedule
-        </button>
+        <form id="deleteScheduleForm" method="POST" class="inline">
+          @csrf
+          @method('DELETE')
+          <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-300">
+            <i class="fas fa-trash mr-2"></i>Delete Schedule
+          </button>
+        </form>
       </div>
     @endslot
   </x-modal>
 @endpush
 
-@push('scripts')
+  @push('scripts')
   <script>
     let currentScheduleId = null;
 
     function openAddScheduleModal() {
-      openModal('addScheduleModal');
-    }
-
-    function saveNewSchedule() {
-      alert('New schedule added successfully!');
       document.getElementById('addScheduleForm').reset();
-      closeModal('addScheduleModal');
+      openModal('addScheduleModal');
     }
 
     function openEditScheduleModal(id) {
       currentScheduleId = id;
       const schedule = getScheduleData(id);
-      if (!schedule) return;
+      if (!schedule) {
+        if (typeof showToast === 'function') {
+          showToast('error', 'Schedule not found. Please try again.');
+        }
+        return;
+      }
+      
       const form = document.getElementById('editScheduleForm');
-      form.id.value = schedule.id;
-      form.area.value = schedule.area;
-      form.days.value = schedule.days;
-      form.time.value = schedule.time;
-      form.truck.value = schedule.truck;
-      form.status.value = schedule.status;
+      form.action = `/admin/schedule/${id}`;
+      document.getElementById('editScheduleId').value = schedule.id;
+      document.getElementById('editScheduleDays').value = schedule.days;
+      document.getElementById('editScheduleTimeStart').value = schedule.time_start;
+      document.getElementById('editScheduleTimeEnd').value = schedule.time_end;
+      document.getElementById('editScheduleTruck').value = schedule.truck;
+      document.getElementById('editScheduleStatus').value = schedule.status;
+      
+      document.getElementById('editScheduleArea').value = schedule.area;
+      
       openModal('editScheduleModal');
-    }
-
-    function saveScheduleChanges() {
-      alert(`Schedule #${currentScheduleId} updated successfully!`);
-      closeModal('editScheduleModal');
     }
 
     function openDeleteScheduleModal(id) {
       currentScheduleId = id;
+      const form = document.getElementById('deleteScheduleForm');
+      form.action = `/admin/schedule/${id}`;
       openModal('deleteScheduleModal');
     }
 
-    function confirmDeleteSchedule() {
-      alert(`Schedule #${currentScheduleId} deleted successfully!`);
-      closeModal('deleteScheduleModal');
-    }
-
     function getScheduleData(id) {
-      const row = document.querySelector(`#scheduleTableBody tr[data-schedule*="\"id\":${id}"]`);
-      return row ? JSON.parse(row.dataset.schedule) : null;
+      const row = document.querySelector(`#scheduleTableBody tr[data-schedule*='"id":${id}']`);
+      if (row) {
+        return JSON.parse(row.dataset.schedule);
+      }
+      return null;
     }
 
-    function filterSchedules() {
-      const query = document.getElementById('scheduleSearchInput').value.toLowerCase();
-      document.querySelectorAll('#scheduleTableBody tr').forEach(row => {
-        const data = JSON.parse(row.dataset.schedule);
-        const match = data.area.toLowerCase().includes(query)
-          || data.days.toLowerCase().includes(query)
-          || data.truck.toLowerCase().includes(query);
-        row.style.display = match ? '' : 'none';
-      });
-    }
+    // Search functionality (now handled by controller, but keeping for client-side if needed)
+    document.getElementById('scheduleSearchInput')?.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.closest('form')?.submit();
+      }
+    });
   </script>
 @endpush
 

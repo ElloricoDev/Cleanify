@@ -21,5 +21,14 @@ class DatabaseSeeder extends Seeder
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
+
+        // Seed reports if users exist
+        $this->call(ReportSeeder::class);
+        
+        // Seed schedules
+        $this->call(ScheduleSeeder::class);
+        
+        // Seed trucks
+        $this->call(TruckSeeder::class);
     }
 }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -22,6 +23,9 @@ class User extends Authenticatable
         'email',
         'password',
         'is_admin',
+        'email_notifications',
+        'sms_notifications',
+        'push_notifications',
     ];
 
     /**
@@ -45,6 +49,9 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_admin' => 'boolean',
+            'email_notifications' => 'boolean',
+            'sms_notifications' => 'boolean',
+            'push_notifications' => 'boolean',
         ];
     }
 
@@ -108,5 +115,13 @@ class User extends Authenticatable
     {
         $colors = $this->getAvatarColor();
         return "bg-gradient-to-br {$colors[0]} {$colors[1]}";
+    }
+
+    /**
+     * Get the reports created by this user.
+     */
+    public function reports(): HasMany
+    {
+        return $this->hasMany(Report::class);
     }
 }

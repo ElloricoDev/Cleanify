@@ -16,10 +16,10 @@
   <h2 class="text-3xl font-bold text-gray-800 mb-6">Welcome, Admin 👋</h2>
 
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <x-admin.stat-card icon="fas fa-users" title="Total Users" value="145" />
-    <x-admin.stat-card icon="fas fa-bullhorn" title="Reports" value="32" borderClass="border-l-4 border-blue-500" iconWrapperClass="bg-blue-100" iconColorClass="text-blue-600" />
-    <x-admin.stat-card icon="fas fa-images" title="Posts" value="87" borderClass="border-l-4 border-purple-500" iconWrapperClass="bg-purple-100" iconColorClass="text-purple-600" />
-    <x-admin.stat-card icon="fas fa-truck" title="Garbage Trucks" value="5 Active" borderClass="border-l-4 border-orange-500" iconWrapperClass="bg-orange-100" iconColorClass="text-orange-600" />
+    <x-admin.stat-card icon="fas fa-users" title="Total Users" value="{{ $totalUsers }}" />
+    <x-admin.stat-card icon="fas fa-bullhorn" title="Reports" value="{{ $totalReports }}" borderClass="border-l-4 border-blue-500" iconWrapperClass="bg-blue-100" iconColorClass="text-blue-600" />
+    <x-admin.stat-card icon="fas fa-calendar-check" title="Active Schedules" value="{{ $activeSchedules }}" borderClass="border-l-4 border-purple-500" iconWrapperClass="bg-purple-100" iconColorClass="text-purple-600" />
+    <x-admin.stat-card icon="fas fa-truck" title="Active Trucks" value="{{ $activeTrucks }}" borderClass="border-l-4 border-orange-500" iconWrapperClass="bg-orange-100" iconColorClass="text-orange-600" />
   </div>
 
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -63,39 +63,44 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-200">
-          @foreach ([
-            ['@MariaLopez','Missed Pickup','Pending','Oct 14, 2025'],
-            ['@JohnDoe','Overflowing Bin','Resolved','Oct 12, 2025'],
-            ['@EllaMae','Illegal Dumping','Urgent','Oct 10, 2025'],
-            ['@CarlosSantos','Broken Bin','Pending','Oct 08, 2025'],
-          ] as $index => [$user,$type,$status,$date])
+          @forelse ($recentReports as $index => $report)
             @php
               $statusStyles = [
-                'Pending' => 'bg-yellow-100 text-yellow-800',
-                'Resolved' => 'bg-green-100 text-green-800',
-                'Urgent' => 'bg-red-100 text-red-800',
+                'pending' => 'bg-yellow-100 text-yellow-800',
+                'resolved' => 'bg-green-100 text-green-800',
+                'rejected' => 'bg-red-100 text-red-800',
               ];
             @endphp
             <tr class="hover:bg-gray-50 transition-colors duration-200">
               <td class="px-4 py-3">{{ $index + 1 }}</td>
-              <td class="px-4 py-3 font-medium">{{ $user }}</td>
-              <td class="px-4 py-3">{{ $type }}</td>
+              <td class="px-4 py-3 font-medium">
+                @if($report->user)
+                  {{ $report->user->name }}
+                @else
+                  <span class="text-gray-400">Unknown User</span>
+                @endif
+              </td>
+              <td class="px-4 py-3">{{ \Illuminate\Support\Str::limit($report->description, 30) }}</td>
               <td class="px-4 py-3">
-                <span class="{{ $statusStyles[$status] ?? 'bg-gray-100 text-gray-800' }} text-xs font-medium px-2.5 py-0.5 rounded-full">
-                  {{ $status }}
+                <span class="{{ $statusStyles[$report->status] ?? 'bg-gray-100 text-gray-800' }} text-xs font-medium px-2.5 py-0.5 rounded-full">
+                  {{ ucfirst($report->status) }}
                 </span>
               </td>
-              <td class="px-4 py-3">{{ $date }}</td>
+              <td class="px-4 py-3">{{ $report->created_at->format('M d, Y') }}</td>
               <td class="px-4 py-3">
-                <button class="w-8 h-8 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors duration-300 mr-2">
+                <a href="{{ route('admin.reports') }}?search={{ $report->id }}" class="w-8 h-8 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors duration-300 inline-flex items-center justify-center" title="View Report">
                   <i class="fas fa-eye text-xs"></i>
-                </button>
-                <button class="w-8 h-8 bg-red-500 text-white rounded hover:bg-red-600 transition-colors duration-300">
-                  <i class="fas fa-trash text-xs"></i>
-                </button>
+                </a>
               </td>
             </tr>
-          @endforeach
+          @empty
+            <tr>
+              <td colspan="6" class="px-4 py-8 text-center text-gray-500">
+                <i class="fas fa-bullhorn text-4xl mb-2 block"></i>
+                No reports yet
+              </td>
+            </tr>
+          @endforelse
         </tbody>
       </table>
     </div>
@@ -196,14 +201,15 @@
     document.addEventListener('DOMContentLoaded', () => {
       const reportsCtx = document.getElementById('reportsChart');
       if (reportsCtx) {
+        const reportsData = @json($reportsChartData);
         new Chart(reportsCtx, {
           type: 'bar',
           data: {
-            labels: ['Missed Pickup', 'Overflowing Bin', 'Illegal Dumping', 'Others'],
+            labels: reportsData.labels,
             datasets: [{
               label: 'Reports',
-              data: [12, 9, 7, 4],
-              backgroundColor: ['#16a34a', '#2563eb', '#eab308', '#dc2626']
+              data: reportsData.data,
+              backgroundColor: reportsData.colors
             }]
           },
           options: {
@@ -216,13 +222,14 @@
 
       const usersCtx = document.getElementById('usersChart');
       if (usersCtx) {
+        const usersData = @json($usersChartData);
         new Chart(usersCtx, {
           type: 'pie',
           data: {
-            labels: ['Users', 'Admins', 'Moderators'],
+            labels: usersData.labels,
             datasets: [{
-              data: [120, 15, 10],
-              backgroundColor: ['#16a34a', '#2563eb', '#eab308']
+              data: usersData.data,
+              backgroundColor: usersData.colors
             }]
           },
           options: { responsive: true, maintainAspectRatio: false }
@@ -256,7 +263,9 @@
     });
 
     function submitNewAdminReport() {
-      alert('New report submitted successfully!');
+      if (typeof showToast === 'function') {
+        showToast('success', 'New report submitted successfully!');
+      }
       document.getElementById('newReportForm').reset();
       document.getElementById('adminReportPreview').classList.add('hidden');
       document.getElementById('adminReportPreview').innerHTML = '';

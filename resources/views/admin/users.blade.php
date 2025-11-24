@@ -269,7 +269,9 @@
     function openUserView(id) {
       const user = getUserFromTable(id);
       if (!user) {
-        alert('User not found');
+        if (typeof showToast === 'function') {
+          showToast('error', 'User not found. Please try again.');
+        }
         return;
       }
       
@@ -335,7 +337,9 @@
     function openUserEdit(id) {
       const user = getUserFromTable(id);
       if (!user) {
-        alert('User not found');
+        if (typeof showToast === 'function') {
+          showToast('error', 'User not found. Please try again.');
+        }
         return;
       }
       

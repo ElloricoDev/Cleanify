@@ -47,30 +47,39 @@ Route::middleware(['auth', 'not.admin'])->group(function () {
 
 // Admin pages - protected: requires authentication and user MUST be admin
 Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(function () {
-    Route::get('/dashboard', function () {
-        return view('admin.dashboard', ['activePage' => 'dashboard']);
-    })->name('dashboard');
+    // Dashboard
+    Route::get('/dashboard', [App\Http\Controllers\Admin\DashboardController::class, 'index'])->name('dashboard');
 
     // User Management
     Route::get('/users', [App\Http\Controllers\Admin\UserManagementController::class, 'index'])->name('users');
     Route::put('/users/{id}', [App\Http\Controllers\Admin\UserManagementController::class, 'update'])->name('users.update');
     Route::delete('/users/{id}', [App\Http\Controllers\Admin\UserManagementController::class, 'destroy'])->name('users.destroy');
 
-    Route::get('/reports', function () {
-        return view('admin.reports', ['activePage' => 'reports']);
-    })->name('reports');
+    // Reports Management
+    Route::get('/reports', [App\Http\Controllers\Admin\ReportsController::class, 'index'])->name('reports');
+    Route::post('/reports/{id}/resolve', [App\Http\Controllers\Admin\ReportsController::class, 'resolve'])->name('reports.resolve');
+    Route::post('/reports/{id}/reject', [App\Http\Controllers\Admin\ReportsController::class, 'reject'])->name('reports.reject');
 
-    Route::get('/schedule', function () {
-        return view('admin.schedule', ['activePage' => 'schedule']);
-    })->name('schedule');
+    // Schedule Management
+    Route::get('/schedule', [App\Http\Controllers\Admin\ScheduleController::class, 'index'])->name('schedule');
+    Route::post('/schedule', [App\Http\Controllers\Admin\ScheduleController::class, 'store'])->name('schedule.store');
+    Route::put('/schedule/{id}', [App\Http\Controllers\Admin\ScheduleController::class, 'update'])->name('schedule.update');
+    Route::delete('/schedule/{id}', [App\Http\Controllers\Admin\ScheduleController::class, 'destroy'])->name('schedule.destroy');
 
-    Route::get('/tracker', function () {
-        return view('admin.tracker', ['activePage' => 'tracker']);
-    })->name('tracker');
+    // Tracker / Truck Management
+    Route::get('/tracker', [App\Http\Controllers\Admin\TrackerController::class, 'index'])->name('tracker');
+    Route::post('/tracker', [App\Http\Controllers\Admin\TrackerController::class, 'store'])->name('tracker.store');
+    Route::put('/tracker/{id}', [App\Http\Controllers\Admin\TrackerController::class, 'update'])->name('tracker.update');
+    Route::delete('/tracker/{id}', [App\Http\Controllers\Admin\TrackerController::class, 'destroy'])->name('tracker.destroy');
+    Route::post('/tracker/{id}/location', [App\Http\Controllers\Admin\TrackerController::class, 'updateLocation'])->name('tracker.update-location');
+    Route::get('/tracker/data', [App\Http\Controllers\Admin\TrackerController::class, 'getData'])->name('tracker.data');
+    Route::get('/tracker/{id}/route-history', [App\Http\Controllers\Admin\TrackerController::class, 'getRouteHistory'])->name('tracker.route-history');
 
-    Route::get('/settings', function () {
-        return view('admin.settings', ['activePage' => 'settings']);
-    })->name('settings');
+    // Settings Management
+    Route::get('/settings', [App\Http\Controllers\Admin\SettingsController::class, 'index'])->name('settings');
+    Route::post('/settings/profile', [App\Http\Controllers\Admin\SettingsController::class, 'updateProfile'])->name('settings.profile');
+    Route::post('/settings/password', [App\Http\Controllers\Admin\SettingsController::class, 'updatePassword'])->name('settings.password');
+    Route::post('/settings/notifications', [App\Http\Controllers\Admin\SettingsController::class, 'updateNotifications'])->name('settings.notifications');
 });
 
 require __DIR__.'/auth.php';

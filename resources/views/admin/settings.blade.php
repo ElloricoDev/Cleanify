@@ -3,6 +3,18 @@
 @section('title', 'Settings')
 
 @section('content')
+  @if(session('success'))
+    <x-alert type="success" dismissible class="mb-4">
+      {{ session('success') }}
+    </x-alert>
+  @endif
+
+  @if(session('error'))
+    <x-alert type="error" dismissible class="mb-4">
+      {{ session('error') }}
+    </x-alert>
+  @endif
+
   <div class="mb-6">
     <h2 class="text-3xl font-bold text-gray-800">
       <i class="fas fa-cog text-green-600 mr-3"></i>Admin Settings ⚙️
@@ -15,18 +27,25 @@
       <i class="fas fa-user-circle text-green-600 text-xl mr-3"></i>
       <h3 class="text-xl font-semibold text-gray-800">Profile Settings</h3>
     </div>
-    <form id="adminProfileForm" class="space-y-4">
+    <form method="POST" action="{{ route('admin.settings.profile') }}" class="space-y-4">
+      @csrf
       <div>
         <label class="block text-gray-700 mb-2 font-medium">
           <i class="fas fa-user mr-2 text-green-600"></i>Admin Name
         </label>
-        <input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" value="John Admin">
+        <input type="text" name="name" value="{{ old('name', $user->name) }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent @error('name') border-red-500 @enderror" required>
+        @error('name')
+          <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+        @enderror
       </div>
       <div>
         <label class="block text-gray-700 mb-2 font-medium">
           <i class="fas fa-envelope mr-2 text-green-600"></i>Email Address
         </label>
-        <input type="email" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" value="admin@cleanify.com">
+        <input type="email" name="email" value="{{ old('email', $user->email) }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent @error('email') border-red-500 @enderror" required>
+        @error('email')
+          <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+        @enderror
       </div>
       <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-300">
         <i class="fas fa-save mr-2"></i>Save Changes
@@ -39,24 +58,31 @@
       <i class="fas fa-lock text-green-600 text-xl mr-3"></i>
       <h3 class="text-xl font-semibold text-gray-800">Update Password</h3>
     </div>
-    <form id="adminPasswordForm" class="space-y-4">
+    <form method="POST" action="{{ route('admin.settings.password') }}" class="space-y-4">
+      @csrf
       <div>
         <label class="block text-gray-700 mb-2 font-medium">
           <i class="fas fa-key mr-2 text-green-600"></i>Current Password
         </label>
-        <input type="password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="Enter current password">
+        <input type="password" name="current_password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent @error('current_password') border-red-500 @enderror" placeholder="Enter current password" required>
+        @error('current_password')
+          <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+        @enderror
       </div>
       <div>
         <label class="block text-gray-700 mb-2 font-medium">
           <i class="fas fa-key mr-2 text-green-600"></i>New Password
         </label>
-        <input type="password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="Enter new password">
+        <input type="password" name="password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent @error('password') border-red-500 @enderror" placeholder="Enter new password" required>
+        @error('password')
+          <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+        @enderror
       </div>
       <div>
         <label class="block text-gray-700 mb-2 font-medium">
           <i class="fas fa-key mr-2 text-green-600"></i>Confirm New Password
         </label>
-        <input type="password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="Confirm new password">
+        <input type="password" name="password_confirmation" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="Confirm new password" required>
       </div>
       <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-300">
         <i class="fas fa-key mr-2"></i>Update Password
@@ -69,19 +95,43 @@
       <i class="fas fa-bell text-green-600 text-xl mr-3"></i>
       <h3 class="text-xl font-semibold text-gray-800">Notification Preferences</h3>
     </div>
-    <form id="adminNotificationForm" class="space-y-3">
-      @foreach ([
-        ['id' => 'emailNotif', 'label' => 'Email Notifications', 'icon' => 'fas fa-envelope', 'checked' => true],
-        ['id' => 'smsNotif', 'label' => 'SMS Notifications', 'icon' => 'fas fa-comment-alt', 'checked' => false],
-        ['id' => 'pushNotif', 'label' => 'Push Notifications', 'icon' => 'fas fa-bell', 'checked' => true],
-      ] as $pref)
+    <form method="POST" action="{{ route('admin.settings.notifications') }}" class="space-y-3">
+      @csrf
+      
+      <!-- Email Notifications -->
+      <div class="flex items-center p-3 border border-gray-200 rounded-lg">
+        <input type="checkbox" id="emailNotif" name="email_notifications" value="1" class="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2" {{ old('email_notifications', $user->email_notifications ?? true) ? 'checked' : '' }}>
+        <label for="emailNotif" class="ml-2 text-gray-700">
+          <i class="fas fa-envelope mr-2 text-green-600"></i>Email Notifications
+        </label>
+      </div>
+      
+      <!-- SMS Notifications -->
+      <div class="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
         <div class="flex items-center">
-          <input type="checkbox" id="{{ $pref['id'] }}" class="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2" {{ $pref['checked'] ? 'checked' : '' }}>
-          <label for="{{ $pref['id'] }}" class="ml-2 text-gray-700">
-            <i class="{{ $pref['icon'] }} mr-2 text-green-600"></i>{{ $pref['label'] }}
+          <input type="checkbox" id="smsNotif" name="sms_notifications" value="1" class="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2" {{ old('sms_notifications', $user->sms_notifications ?? false) ? 'checked' : '' }} disabled>
+          <label for="smsNotif" class="ml-2 text-gray-500">
+            <i class="fas fa-comment-alt mr-2 text-gray-400"></i>SMS Notifications
           </label>
         </div>
-      @endforeach
+        <span class="px-3 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-lg">
+          <i class="fas fa-clock mr-1"></i>Coming Soon
+        </span>
+      </div>
+      
+      <!-- Push Notifications -->
+      <div class="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
+        <div class="flex items-center">
+          <input type="checkbox" id="pushNotif" name="push_notifications" value="1" class="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2" {{ old('push_notifications', $user->push_notifications ?? true) ? 'checked' : '' }} disabled>
+          <label for="pushNotif" class="ml-2 text-gray-500">
+            <i class="fas fa-bell mr-2 text-gray-400"></i>Push Notifications
+          </label>
+        </div>
+        <span class="px-3 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-lg">
+          <i class="fas fa-clock mr-1"></i>Coming Soon
+        </span>
+      </div>
+      
       <button type="submit" class="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-300">
         <i class="fas fa-bell mr-2"></i>Update Preferences
       </button>
@@ -143,32 +193,6 @@
 
 @push('scripts')
   <script>
-    document.getElementById('adminProfileForm').addEventListener('submit', (e) => {
-      e.preventDefault();
-      alert('Profile settings updated successfully!');
-    });
-
-    document.getElementById('adminPasswordForm').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const inputs = e.target.querySelectorAll('input');
-      const [current, next, confirm] = inputs;
-      if (!current.value || !next.value || !confirm.value) {
-        alert('Please fill in all password fields.');
-        return;
-      }
-      if (next.value !== confirm.value) {
-        alert('New passwords do not match.');
-        return;
-      }
-      alert('Password updated successfully!');
-      e.target.reset();
-    });
-
-    document.getElementById('adminNotificationForm').addEventListener('submit', (e) => {
-      e.preventDefault();
-      alert('Notification preferences updated successfully!');
-    });
-
     function toggleAccountConnection(button) {
       const row = button.closest('tr');
       const isConnected = button.textContent.trim().includes('Disconnect');
@@ -179,14 +203,18 @@
         button.innerHTML = '<i class="fas fa-check-circle mr-1"></i>Connect';
         statusCell.className = 'text-xs font-medium px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-800';
         statusCell.innerHTML = '<i class="fas fa-circle text-xs mr-1"></i>Disconnected';
-        alert('Successfully disconnected account.');
+        if (typeof showToast === 'function') {
+          showToast('info', 'Successfully disconnected account.');
+        }
       } else {
         button.classList.remove('bg-green-600', 'hover:bg-green-700');
         button.classList.add('bg-red-500', 'hover:bg-red-600');
         button.innerHTML = '<i class="fas fa-times-circle mr-1"></i>Disconnect';
         statusCell.className = 'text-xs font-medium px-2.5 py-0.5 rounded-full bg-green-100 text-green-800';
         statusCell.innerHTML = '<i class="fas fa-circle text-xs mr-1"></i>Connected';
-        alert('Successfully connected account.');
+        if (typeof showToast === 'function') {
+          showToast('success', 'Successfully connected account.');
+        }
       }
     }
   </script>
