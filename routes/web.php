@@ -25,9 +25,7 @@ Route::middleware(['auth', 'not.admin'])->group(function () {
     Route::post('/notifications/{notification}/read', [App\Http\Controllers\Client\NotificationController::class, 'markAsRead'])->name('notifications.mark-read');
     Route::delete('/notifications/{notification}', [App\Http\Controllers\Client\NotificationController::class, 'destroy'])->name('notifications.destroy');
 
-    Route::get('/community-reports', function () {
-        return view('community-reports', ['activePage' => 'reports']);
-    })->name('community-reports');
+    Route::get('/community-reports', [App\Http\Controllers\Client\CommunityReportController::class, 'index'])->name('community-reports');
 
     Route::get('/settings', function () {
         return view('settings', ['activePage' => 'settings']);
@@ -41,6 +39,8 @@ Route::middleware(['auth', 'not.admin'])->group(function () {
     Route::post('/reports', [App\Http\Controllers\Client\ReportFeedController::class, 'store'])->name('reports.store');
     Route::post('/reports/{report}/like', [App\Http\Controllers\Client\ReportFeedController::class, 'toggleLike'])->name('reports.like');
     Route::post('/reports/{report}/comment', [App\Http\Controllers\Client\ReportFeedController::class, 'storeComment'])->name('reports.comment');
+    Route::get('/reports/{report}', [App\Http\Controllers\Client\CommunityReportController::class, 'show'])->name('reports.show');
+    Route::post('/reports/{report}/follow', [App\Http\Controllers\Client\ReportFeedController::class, 'toggleFollow'])->name('reports.follow');
 });
 
 // Profile management routes - only for regular users (not admins)

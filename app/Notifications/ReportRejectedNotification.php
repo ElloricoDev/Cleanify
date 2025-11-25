@@ -16,7 +16,8 @@ class ReportRejectedNotification extends Notification
      * Create a new notification instance.
      */
     public function __construct(
-        public Report $report
+        public Report $report,
+        public bool $isFollower = false
     ) {
         //
     }
@@ -42,11 +43,19 @@ class ReportRejectedNotification extends Notification
     {
         $resolver = $this->report->resolver;
         $resolverName = $resolver ? $resolver->name : 'Admin';
-        
+
+        $subject = $this->isFollower
+            ? 'Report You Follow Was Rejected - Cleanify'
+            : 'Report Status Update - Cleanify';
+
+        $intro = $this->isFollower
+            ? 'A community report you follow was rejected by our team.'
+            : 'We wanted to inform you about the status of your community report.';
+
         return (new MailMessage)
-                    ->subject('Report Status Update - Cleanify')
+                    ->subject($subject)
                     ->greeting('Hello ' . $notifiable->name . ',')
-                    ->line('We wanted to inform you about the status of your community report.')
+                    ->line($intro)
                     ->line('**Report Details:**')
                     ->line('📍 Location: ' . $this->report->location)
                     ->line('📝 Description: ' . $this->report->description)
@@ -72,6 +81,13 @@ class ReportRejectedNotification extends Notification
             'report_id' => $this->report->id,
             'status' => 'rejected',
             'location' => $this->report->location,
+            'follower' => $this->isFollower,
+            'category' => 'reports',
+            'title' => $this->isFollower ? 'Report you follow rejected' : 'Your report was rejected',
+            'message' => 'Location: ' . $this->report->location,
+            'icon' => 'fa-times-circle',
+            'color' => 'bg-red-600',
+            'url' => url('/community-reports'),
         ];
     }
 }

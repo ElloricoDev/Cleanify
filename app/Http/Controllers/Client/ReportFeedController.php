@@ -92,5 +92,28 @@ class ReportFeedController extends Controller
             'comments_count' => $commentsCount,
         ]);
     }
+
+    /**
+     * Toggle follow state for a report.
+     */
+    public function toggleFollow(Report $report): JsonResponse
+    {
+        $user = Auth::user();
+
+        $isFollowing = $report->followers()->where('user_id', $user->id)->exists();
+
+        if ($isFollowing) {
+            $report->followers()->detach($user->id);
+            $isFollowing = false;
+        } else {
+            $report->followers()->attach($user->id);
+            $isFollowing = true;
+        }
+
+        return response()->json([
+            'following' => $isFollowing,
+            'followers_count' => $report->followers()->count(),
+        ]);
+    }
 }
 

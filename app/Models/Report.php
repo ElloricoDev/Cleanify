@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Report extends Model
@@ -80,5 +81,13 @@ class Report extends Model
     public function comments(): HasMany
     {
         return $this->hasMany(ReportComment::class);
+    }
+
+    /**
+     * Users following this report.
+     */
+    public function followers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'report_followers')->withTimestamps();
     }
 }

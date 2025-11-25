@@ -70,14 +70,8 @@ class ReportsController extends Controller
             'resolved_at' => now(),
         ]);
 
-        // Send email notification to the user who submitted the report
-        if ($report->user && $report->user->email_notifications) {
-            try {
-                $report->user->notify(new \App\Notifications\ReportResolvedNotification($report));
-            } catch (\Exception $e) {
-                \Log::error('Failed to send report resolved notification: ' . $e->getMessage());
-            }
-        }
+        $this->notifyReportOwner($report, 'resolved');
+        $this->notifyFollowers($report, 'resolved');
 
         return redirect()->route('admin.reports')
             ->with('success', 'Report marked as resolved successfully!');
@@ -94,16 +88,47 @@ class ReportsController extends Controller
             'resolved_at' => now(),
         ]);
 
-        // Send email notification to the user who submitted the report
-        if ($report->user && $report->user->email_notifications) {
-            try {
-                $report->user->notify(new \App\Notifications\ReportRejectedNotification($report));
-            } catch (\Exception $e) {
-                \Log::error('Failed to send report rejected notification: ' . $e->getMessage());
-            }
-        }
+        $this->notifyReportOwner($report, 'rejected');
+        $this->notifyFollowers($report, 'rejected');
 
         return redirect()->route('admin.reports')
             ->with('success', 'Report rejected successfully!');
+    }
+
+    protected function notifyReportOwner(Report $report, string $type): void
+    {
+        if (!$report->user || !$report->user->email_notifications) {
+            return;
+        }
+
+        try {
+            if ($type === 'resolved') {
+                $report->user->notify(new \App\Notifications\ReportResolvedNotification($report));
+            } else {
+                $report->user->notify(new \App\Notifications\ReportRejectedNotification($report));
+            }
+        } catch (\Exception $e) {
+            \Log::error('Failed to notify report owner: ' . $e->getMessage());
+        }
+    }
+
+    protected function notifyFollowers(Report $report, string $type): void
+    {
+        $followers = $report->followers()
+            ->where('user_id', '!=', $report->user_id)
+            ->where('email_notifications', true)
+            ->get();
+
+        foreach ($followers as $follower) {
+            try {
+                if ($type === 'resolved') {
+                    $follower->notify(new \App\Notifications\ReportResolvedNotification($report, true));
+                } else {
+                    $follower->notify(new \App\Notifications\ReportRejectedNotification($report, true));
+                }
+            } catch (\Exception $e) {
+                \Log::error('Failed to notify follower: ' . $e->getMessage());
+            }
+        }
     }
 }
