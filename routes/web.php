@@ -9,21 +9,21 @@ Route::get('/', function () {
 
 // User pages - protected: requires authentication and user must NOT be admin
 Route::middleware(['auth', 'not.admin'])->group(function () {
-    Route::get('/dashboard', function () {
-        return view('dashboard', ['activePage' => 'home']);
-    })->name('dashboard');
+    Route::get('/dashboard', [App\Http\Controllers\Client\DashboardController::class, 'index'])->name('dashboard');
 
-    Route::get('/garbage-schedule', function () {
-        return view('garbage-schedule', ['activePage' => 'schedule']);
-    })->name('garbage-schedule');
+    Route::get('/garbage-schedule', [App\Http\Controllers\Client\ScheduleController::class, 'index'])->name('garbage-schedule');
+    Route::post('/garbage-schedule/service-area', [App\Http\Controllers\Client\ScheduleController::class, 'updateServiceArea'])->name('garbage-schedule.service-area');
+    Route::post('/garbage-schedule/notifications', [App\Http\Controllers\Client\ScheduleController::class, 'updateNotifications'])->name('garbage-schedule.notifications');
 
-    Route::get('/tracker', function () {
-        return view('tracker', ['activePage' => 'tracker']);
-    })->name('tracker');
+    Route::get('/tracker', [App\Http\Controllers\Client\TrackerController::class, 'index'])->name('tracker');
+    Route::get('/tracker/data', [App\Http\Controllers\Client\TrackerController::class, 'getData'])->name('tracker.data.client');
+    Route::get('/tracker/{truck}/route-history', [App\Http\Controllers\Client\TrackerController::class, 'routeHistory'])->name('tracker.route-history.client');
 
-    Route::get('/notifications', function () {
-        return view('notifications', ['activePage' => 'notifications']);
-    })->name('notifications');
+    Route::get('/notifications', [App\Http\Controllers\Client\NotificationController::class, 'index'])->name('notifications');
+    Route::post('/notifications/mark-all-read', [App\Http\Controllers\Client\NotificationController::class, 'markAllAsRead'])->name('notifications.mark-all-read');
+    Route::post('/notifications/preferences', [App\Http\Controllers\Client\NotificationController::class, 'updatePreferences'])->name('notifications.preferences');
+    Route::post('/notifications/{notification}/read', [App\Http\Controllers\Client\NotificationController::class, 'markAsRead'])->name('notifications.mark-read');
+    Route::delete('/notifications/{notification}', [App\Http\Controllers\Client\NotificationController::class, 'destroy'])->name('notifications.destroy');
 
     Route::get('/community-reports', function () {
         return view('community-reports', ['activePage' => 'reports']);
@@ -36,6 +36,11 @@ Route::middleware(['auth', 'not.admin'])->group(function () {
     Route::get('/profile', function () {
         return view('profile', ['activePage' => 'profile']);
     })->name('profile');
+
+    // Report feed interactions
+    Route::post('/reports', [App\Http\Controllers\Client\ReportFeedController::class, 'store'])->name('reports.store');
+    Route::post('/reports/{report}/like', [App\Http\Controllers\Client\ReportFeedController::class, 'toggleLike'])->name('reports.like');
+    Route::post('/reports/{report}/comment', [App\Http\Controllers\Client\ReportFeedController::class, 'storeComment'])->name('reports.comment');
 });
 
 // Profile management routes - only for regular users (not admins)

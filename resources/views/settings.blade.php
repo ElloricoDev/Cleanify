@@ -79,7 +79,6 @@
     </button>
   </div>
 @endsection
-
 @push('modals')
   <!-- Delete Confirmation Modal -->
   <x-modal id="deleteModal" title="Confirm Deletion" icon="fas fa-exclamation-circle" color="red">
@@ -106,3 +105,4 @@
     });
   </script>
 @endpush
+

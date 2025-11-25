@@ -3,12 +3,21 @@
 @section('title', 'Home')
 
 @section('content')
+  @if(session('success'))
+    <x-alert type="success" dismissible class="mb-4">
+      {{ session('success') }}
+    </x-alert>
+  @endif
+
   <!-- Topbar -->
-  <div class="bg-white rounded-xl shadow-sm p-4 mb-6 flex justify-between items-center">
-    <h4 class="font-semibold text-gray-800">Welcome back, <strong>Cleanify User!</strong></h4>
+  <div class="bg-white rounded-xl shadow-sm p-4 mb-6 flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <h4 class="font-semibold text-gray-800">Welcome back, <strong>{{ $user->name }}</strong> 👋</h4>
+      <p class="text-gray-500 text-sm">See the latest updates from your community.</p>
+    </div>
     <div class="flex items-center gap-2">
-      <input type="text" class="w-80 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="Search posts...">
-      <button class="px-4 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-600 hover:text-white transition-colors duration-300">
+      <input type="text" id="searchInput" class="w-72 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="Search community reports...">
+      <button onclick="searchReports()" class="px-4 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-600 hover:text-white transition-colors duration-300">
         <i class="fas fa-search"></i>
       </button>
     </div>
@@ -16,112 +25,209 @@
 
   <!-- Create Post Box -->
   <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
-    <div class="flex items-start mb-4">
-      <img src="https://i.pravatar.cc/150?img=55" alt="User" class="w-12 h-12 rounded-full mr-4">
-      <textarea class="flex-1 border-0 focus:outline-none focus:ring-0 resize-none" placeholder="What's on your mind, Cleanify User?" rows="3"></textarea>
-    </div>
-    <div class="flex justify-between items-center">
-      <label class="px-4 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-600 hover:text-white transition-colors duration-300 cursor-pointer text-sm">
-        <i class="fas fa-image mr-2"></i>Add Photo
-        <input type="file" class="hidden" accept="image/*">
-      </label>
-      <button class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-300">
-        Post
-      </button>
-    </div>
+    <form method="POST" action="{{ route('reports.store') }}" enctype="multipart/form-data" class="space-y-4" id="dashboardReportForm">
+      @csrf
+      <div class="flex items-start">
+        <div class="w-12 h-12 rounded-full {{ $user->getAvatarBgClasses() }} flex items-center justify-center text-white font-bold mr-4">
+          {{ $user->getAvatarInitial() }}
+        </div>
+        <div class="flex-1 space-y-3">
+          <input type="text" name="location" value="{{ old('location') }}" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 @error('location') border-red-500 @enderror" placeholder="Where did this happen?" required>
+          @error('location')
+            <p class="text-sm text-red-600">{{ $message }}</p>
+          @enderror
+          <textarea name="description" rows="3" class="w-full border border-gray-200 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 resize-none @error('description') border-red-500 @enderror" placeholder="Share what's happening..." required>{{ old('description') }}</textarea>
+          @error('description')
+            <p class="text-sm text-red-600">{{ $message }}</p>
+          @enderror
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-3 items-center justify-between">
+        <label class="px-4 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-600 hover:text-white transition-colors duration-300 cursor-pointer text-sm">
+          <i class="fas fa-image mr-2"></i>Add Photo
+          <input type="file" name="image" accept="image/*" class="hidden">
+        </label>
+        @error('image')
+          <p class="text-sm text-red-600 w-full text-right">{{ $message }}</p>
+        @enderror
+        <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-300">
+          Post Update
+        </button>
+      </div>
+    </form>
   </div>
 
   <!-- Feeds -->
   <div class="space-y-6">
-    <!-- Example Feed -->
-    <div class="bg-white rounded-xl shadow-sm p-6">
-      <div class="flex items-center mb-4">
-        <img src="https://i.pravatar.cc/150?img=12" alt="Admin" class="w-12 h-12 rounded-full mr-4">
-        <div>
-          <h6 class="font-semibold text-gray-800 mb-0">Cleanify Admin</h6>
-          <small class="text-gray-500">2 hours ago</small>
+    @forelse($recentReports as $report)
+      @php
+        $reportUser = $report->user;
+        $avatarClasses = $reportUser?->getAvatarBgClasses() ?? 'bg-gray-400';
+        $avatarInitial = $reportUser?->getAvatarInitial() ?? '?';
+        $authorName = $reportUser->name ?? 'Cleanify User';
+        $userLiked = $report->likes->contains('user_id', $user->id);
+      @endphp
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <div class="flex items-center mb-4">
+          <div class="w-12 h-12 rounded-full {{ $avatarClasses }} flex items-center justify-center text-white font-bold mr-4">
+            {{ $avatarInitial }}
+          </div>
+          <div>
+            <h6 class="font-semibold text-gray-800 mb-0">{{ $authorName }}</h6>
+            <small class="text-gray-500">{{ $report->created_at?->diffForHumans() }}</small>
+          </div>
+          <div class="ml-auto">
+            <span class="text-sm font-medium px-3 py-1 rounded-full {{ $report->getStatusBadgeBgClass() }}">
+              {{ ucfirst($report->status) }}
+            </span>
+          </div>
         </div>
-      </div>
-      <p class="text-gray-700 mb-4"><strong>Welcome to Cleanify!</strong> 🌿 Together we can build cleaner, greener communities.</p>
-      <img src="https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=800" alt="Community cleanup" class="w-full rounded-lg mb-4">
-      <div class="flex items-center mt-4">
-        <button class="flex items-center text-gray-600 hover:text-red-500 transition-colors duration-300 mr-6">
-          <i class="fas fa-heart mr-2"></i>
-          <span class="text-sm">12 likes</span>
-        </button>
-        <button class="flex items-center text-gray-600 hover:text-blue-500 transition-colors duration-300" onclick="openModal('commentsModal')">
-          <i class="fas fa-comment mr-2"></i>
-          <span class="text-sm">5 comments</span>
-        </button>
-      </div>
-    </div>
+        <p class="text-gray-700 mb-4">{{ \Illuminate\Support\Str::limit($report->description, 240) }}</p>
+        @if($report->image_path)
+          <img src="{{ asset('storage/' . $report->image_path) }}" alt="Report Image" class="w-full rounded-lg mb-4" onerror="this.style.display='none'">
+        @endif
+        <div class="flex items-center mt-4 text-sm text-gray-500 gap-4">
+          <button type="button" class="flex items-center gap-2 like-button {{ $userLiked ? 'text-green-600' : 'hover:text-green-600' }} transition-colors duration-300" data-report-id="{{ $report->id }}">
+            <i class="fas fa-heart"></i>
+            <span class="like-label">{{ $userLiked ? 'Liked' : 'Like' }}</span>
+            <span class="like-count text-gray-600">({{ $report->likes_count }})</span>
+          </button>
+          <button type="button" class="flex items-center gap-2 text-gray-500 hover:text-blue-500 transition-colors duration-300" onclick="window.location.href='{{ route('community-reports') }}?highlight={{ $report->id }}';">
+            <i class="fas fa-eye"></i> View details
+          </button>
+        </div>
 
-    <!-- Additional feed example -->
-    <div class="bg-white rounded-xl shadow-sm p-6">
-      <div class="flex items-center mb-4">
-        <img src="https://i.pravatar.cc/150?img=32" alt="User" class="w-12 h-12 rounded-full mr-4">
-        <div>
-          <h6 class="font-semibold text-gray-800 mb-0">Eco Warrior</h6>
-          <small class="text-gray-500">5 hours ago</small>
+        <div class="mt-4 space-y-3" id="comments-list-{{ $report->id }}">
+          @foreach($report->comments as $comment)
+            @php
+              $commentUser = $comment->user;
+              $commentClasses = $commentUser?->getAvatarBgClasses() ?? 'bg-gray-400';
+              $commentInitial = $commentUser?->getAvatarInitial() ?? '?';
+            @endphp
+            <div class="flex items-start gap-3">
+              <div class="w-9 h-9 rounded-full {{ $commentClasses }} flex items-center justify-center text-white font-semibold text-sm">
+                {{ $commentInitial }}
+              </div>
+              <div class="flex-1 bg-gray-50 rounded-2xl px-4 py-2">
+                <div class="flex items-center justify-between">
+                  <p class="text-sm font-semibold text-gray-800">{{ $commentUser->name ?? 'Cleanify User' }}</p>
+                  <span class="text-xs text-gray-500">{{ $comment->created_at?->diffForHumans() }}</span>
+                </div>
+                <p class="text-sm text-gray-700">{{ $comment->comment }}</p>
+              </div>
+            </div>
+          @endforeach
         </div>
+
+        <form class="mt-4 comment-form" data-report-id="{{ $report->id }}">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full {{ $user->getAvatarBgClasses() }} flex items-center justify-center text-white font-bold text-sm">
+              {{ $user->getAvatarInitial() }}
+            </div>
+            <div class="flex-1 flex gap-2">
+              <input type="text" name="comment" class="flex-1 border border-gray-200 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm" placeholder="Write a comment..." required>
+              <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-full text-sm hover:bg-green-700 transition-colors duration-300">
+                <i class="fas fa-paper-plane"></i>
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
-      <p class="text-gray-700 mb-4">Just participated in our local beach cleanup! 🏖️ So proud of our community coming together to keep our shores clean. #CleanifyCommunity</p>
-      <div class="flex items-center mt-4">
-        <button class="flex items-center text-gray-600 hover:text-red-500 transition-colors duration-300 mr-6">
-          <i class="fas fa-heart mr-2"></i>
-          <span class="text-sm">28 likes</span>
-        </button>
-        <button class="flex items-center text-gray-600 hover:text-blue-500 transition-colors duration-300" onclick="openModal('commentsModal')">
-          <i class="fas fa-comment mr-2"></i>
-          <span class="text-sm">7 comments</span>
-        </button>
+    @empty
+      <div class="bg-white rounded-xl shadow-sm p-12 text-center">
+        <i class="fas fa-inbox text-gray-300 text-6xl mb-4"></i>
+        <p class="text-gray-600 text-lg">No community updates yet. Be the first to report something! 🌿</p>
       </div>
-    </div>
+    @endforelse
   </div>
 @endsection
 
-@push('modals')
-  <!-- Comments Modal -->
-  <x-modal id="commentsModal" title="Comments" icon="fas fa-comment-dots" color="green">
-    <!-- Dummy Comments -->
-    <div class="flex mb-4">
-      <img src="https://i.pravatar.cc/150?img=33" alt="User" class="w-10 h-10 rounded-full mr-3">
-      <div class="flex-1">
-        <div class="flex items-center mb-1">
-          <strong class="text-gray-800">Maria Santos</strong>
-          <small class="text-gray-500 ml-2">• 10m ago</small>
-        </div>
-        <p class="text-gray-700">Great post! Cleanify is really making a difference 💚</p>
-      </div>
-    </div>
-    <div class="flex mb-4">
-      <img src="https://i.pravatar.cc/150?img=44" alt="User" class="w-10 h-10 rounded-full mr-3">
-      <div class="flex-1">
-        <div class="flex items-center mb-1">
-          <strong class="text-gray-800">Juan Dela Cruz</strong>
-          <small class="text-gray-500 ml-2">• 30m ago</small>
-        </div>
-        <p class="text-gray-700">Love the new initiative from the admin 👏</p>
-      </div>
-    </div>
-    <div class="flex mb-4">
-      <img src="https://i.pravatar.cc/150?img=27" alt="User" class="w-10 h-10 rounded-full mr-3">
-      <div class="flex-1">
-        <div class="flex items-center mb-1">
-          <strong class="text-gray-800">Anna Reyes</strong>
-          <small class="text-gray-500 ml-2">• 1h ago</small>
-        </div>
-        <p class="text-gray-700">We should do a cleanup event this weekend!</p>
-      </div>
-    </div>
-    
-    @slot('footer')
-      <div class="flex">
-        <textarea class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none" placeholder="Add a comment..." rows="2"></textarea>
-        <button class="ml-3 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-300 self-end">
-          <i class="fas fa-paper-plane"></i>
-        </button>
-      </div>
-    @endslot
-  </x-modal>
+@push('scripts')
+  <script>
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    function searchReports() {
+      const query = document.getElementById('searchInput').value;
+      if (query.trim()) {
+        window.location.href = '{{ route("community-reports") }}?search=' + encodeURIComponent(query.trim());
+      }
+    }
+
+    document.getElementById('searchInput')?.addEventListener('keypress', function(event) {
+      if (event.key === 'Enter') {
+        searchReports();
+      }
+    });
+
+    document.querySelectorAll('.like-button').forEach(button => {
+      button.addEventListener('click', function () {
+        const reportId = this.dataset.reportId;
+
+        fetch(`{{ url('/reports') }}/${reportId}/like`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfToken,
+            'Accept': 'application/json',
+          },
+        })
+          .then(response => response.json())
+          .then(data => {
+            if (data.likes_count !== undefined) {
+              this.querySelector('.like-count').textContent = `(${data.likes_count})`;
+              this.querySelector('.like-label').textContent = data.liked ? 'Liked' : 'Like';
+              this.classList.toggle('text-green-600', data.liked);
+            }
+          })
+          .catch(() => {
+            showToast?.('error', 'Unable to update like right now.');
+          });
+      });
+    });
+
+    document.querySelectorAll('.comment-form').forEach(form => {
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        const reportId = this.dataset.reportId;
+        const input = this.querySelector('input[name="comment"]');
+        const comment = input.value.trim();
+        if (!comment) return;
+
+        fetch(`{{ url('/reports') }}/${reportId}/comment`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfToken,
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({ comment }),
+        })
+          .then(response => response.json())
+          .then(data => {
+            if (data.comment) {
+              const list = document.getElementById(`comments-list-${reportId}`);
+              const wrapper = document.createElement('div');
+              wrapper.className = 'flex items-start gap-3';
+              wrapper.innerHTML = `
+                <div class="w-9 h-9 rounded-full ${data.comment.avatar ?? 'bg-gray-400'} flex items-center justify-center text-white font-semibold text-sm">
+                  ${data.comment.initial ?? '?'}
+                </div>
+                <div class="flex-1 bg-gray-50 rounded-2xl px-4 py-2">
+                  <div class="flex items-center justify-between">
+                    <p class="text-sm font-semibold text-gray-800">${data.comment.author}</p>
+                    <span class="text-xs text-gray-500">${data.comment.timestamp}</span>
+                  </div>
+                  <p class="text-sm text-gray-700">${data.comment.comment}</p>
+                </div>
+              `;
+              list.prepend(wrapper);
+              input.value = '';
+            }
+          })
+          .catch(() => {
+            showToast?.('error', 'Unable to post comment right now.');
+          });
+      });
+    });
+  </script>
 @endpush

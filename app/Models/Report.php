@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Report extends Model
 {
@@ -63,5 +64,21 @@ class Report extends Model
             'rejected' => 'bg-red-100 text-red-800',
             default => 'bg-gray-100 text-gray-800',
         };
+    }
+
+    /**
+     * Likes associated with this report.
+     */
+    public function likes(): HasMany
+    {
+        return $this->hasMany(ReportLike::class);
+    }
+
+    /**
+     * Comments associated with this report.
+     */
+    public function comments(): HasMany
+    {
+        return $this->hasMany(ReportComment::class);
     }
 }

@@ -16,8 +16,8 @@ class Schedule extends Model
     ];
 
     protected $casts = [
-        'time_start' => 'datetime',
-        'time_end' => 'datetime',
+        'time_start' => 'datetime:H:i',
+        'time_end' => 'datetime:H:i',
     ];
 
     /**
@@ -25,6 +25,10 @@ class Schedule extends Model
      */
     public function getTimeRangeAttribute(): string
     {
+        if (!$this->time_start || !$this->time_end) {
+            return 'All day';
+        }
+
         $start = $this->time_start instanceof \DateTime ? $this->time_start : new \DateTime($this->time_start);
         $end = $this->time_end instanceof \DateTime ? $this->time_end : new \DateTime($this->time_end);
         return $start->format('g:i A') . ' - ' . $end->format('g:i A');

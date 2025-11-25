@@ -26,6 +26,8 @@ class User extends Authenticatable
         'email_notifications',
         'sms_notifications',
         'push_notifications',
+        'service_area',
+        'notification_preferences',
     ];
 
     /**
@@ -52,6 +54,7 @@ class User extends Authenticatable
             'email_notifications' => 'boolean',
             'sms_notifications' => 'boolean',
             'push_notifications' => 'boolean',
+            'notification_preferences' => 'array',
         ];
     }
 

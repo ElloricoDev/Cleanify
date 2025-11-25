@@ -3,96 +3,148 @@
 @section('title', 'Notifications')
 
 @section('content')
-  <!-- Topbar -->
-  <div class="bg-white rounded-xl shadow-sm p-4 mb-6 flex justify-between items-center">
-    <h4 class="font-semibold text-gray-800">
-      <i class="fas fa-bell text-green-600 mr-3"></i>Notifications
-    </h4>
-    <button class="px-4 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-600 hover:text-white transition-colors duration-300 text-sm">
-      <i class="fas fa-check-double mr-2"></i>Mark all as read
-    </button>
+  @if(session('success'))
+    <x-alert type="success" dismissible class="mb-4">{{ session('success') }}</x-alert>
+  @endif
+  @if(session('error'))
+    <x-alert type="error" dismissible class="mb-4">{{ session('error') }}</x-alert>
+  @endif
+
+  <div class="bg-white rounded-xl shadow-sm p-4 mb-6 flex flex-wrap gap-3 items-center justify-between">
+    <div>
+      <h4 class="font-semibold text-gray-800 flex items-center gap-3">
+        <i class="fas fa-bell text-green-600"></i>Notifications
+        @if($unreadCount)
+          <span class="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">{{ $unreadCount }} unread</span>
+        @endif
+      </h4>
+      <p class="text-sm text-gray-500">Stay on top of schedule updates, report statuses, and reminders.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="{{ route('notifications', ['filter' => 'all', 'category' => $categoryFilter, 'include_muted' => $includeMuted]) }}" class="px-3 py-1.5 rounded-full text-sm {{ $filter === 'all' ? 'bg-green-100 text-green-700 font-semibold' : 'text-gray-600 hover:bg-gray-100' }}">All</a>
+      <a href="{{ route('notifications', ['filter' => 'unread', 'category' => $categoryFilter, 'include_muted' => $includeMuted]) }}" class="px-3 py-1.5 rounded-full text-sm {{ $filter === 'unread' ? 'bg-green-100 text-green-700 font-semibold' : 'text-gray-600 hover:bg-gray-100' }}">Unread</a>
+      <form method="POST" action="{{ route('notifications.mark-all-read') }}" class="ml-2">
+        @csrf
+        <button type="submit" class="px-4 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-600 hover:text-white transition-colors duration-300 text-sm" {{ $unreadCount ? '' : 'disabled' }}>
+          <i class="fas fa-check-double mr-2"></i>Mark all as read
+        </button>
+      </form>
+    </div>
   </div>
 
-  <!-- Notifications List -->
+  <div class="bg-white rounded-xl shadow-sm p-4 mb-4 flex flex-wrap items-center gap-3">
+    <form method="GET" action="{{ route('notifications') }}" class="flex items-center gap-3 flex-wrap">
+      <input type="hidden" name="filter" value="{{ $filter }}">
+      <label class="text-sm text-gray-600 flex items-center gap-2">
+        <span>Category</span>
+        <select name="category" class="border border-gray-300 rounded-full px-3 py-1.5 text-sm focus:ring-green-500">
+          <option value="all" {{ $categoryFilter === 'all' ? 'selected' : '' }}>All categories</option>
+          @foreach($categories as $key => $label)
+            <option value="{{ $key }}" {{ $categoryFilter === $key ? 'selected' : '' }}>{{ $label }}</option>
+          @endforeach
+        </select>
+      </label>
+      <label class="inline-flex items-center text-sm text-gray-600 gap-2">
+        <input type="checkbox" name="include_muted" value="1" {{ $includeMuted ? 'checked' : '' }} class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+        <span>Include muted categories</span>
+      </label>
+      <button type="submit" class="px-4 py-1.5 bg-green-600 text-white rounded-full text-sm hover:bg-green-700">Apply</button>
+    </form>
+  </div>
+
   <div class="bg-white rounded-xl shadow-sm p-6">
-    <div class="space-y-4">
-      <!-- Announcement Notification -->
-      <div class="flex items-start p-4 border-b border-gray-100 hover:bg-green-50 transition-colors duration-300 rounded-lg">
-        <div class="w-12 h-12 bg-green-600 text-white rounded-full flex items-center justify-center mr-4 flex-shrink-0">
-          <i class="fas fa-bullhorn text-lg"></i>
-        </div>
-        <div class="flex-1">
-          <p class="text-gray-800 mb-1">
-            <strong>Admin Announcement:</strong> Join our Barangay Clean-up Drive this Saturday!
-          </p>
-          <div class="text-gray-500 text-sm">2 hours ago</div>
-        </div>
+    @if($notifications->count())
+      <div class="space-y-4">
+        @foreach($notifications as $notification)
+          @php
+            $isUnread = is_null($notification->read_at);
+            $data = $notification->data ?? [];
+            $title = $data['title'] ?? 'Notification';
+            $message = $data['message'] ?? ($notification->type ?? '');
+            $icon = $data['icon'] ?? 'fa-bell';
+            $color = $data['color'] ?? 'bg-green-600';
+            $actionUrl = $data['url'] ?? null;
+          @endphp
+          <div class="flex items-start p-4 border border-gray-100 rounded-xl {{ $isUnread ? 'bg-green-50' : 'bg-white' }}">
+            <div class="w-12 h-12 {{ $color }} text-white rounded-full flex items-center justify-center mr-4 flex-shrink-0">
+              <i class="fas {{ $icon }} text-lg"></i>
+            </div>
+            <div class="flex-1">
+              <p class="text-gray-800 font-semibold">{{ $title }}</p>
+              <p class="text-gray-600 text-sm">{{ $message }}</p>
+              <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                <span><i class="fas fa-clock mr-1"></i>{{ $notification->created_at->diffForHumans() }}</span>
+                @if($isUnread)
+                  <span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">Unread</span>
+                @endif
+              </div>
+            </div>
+            <div class="flex flex-col gap-2 ml-4">
+              @if($actionUrl)
+                <a href="{{ $actionUrl }}" class="px-3 py-1.5 text-sm text-blue-600 hover:underline">View</a>
+              @endif
+              <form method="POST" action="{{ route('notifications.mark-read', $notification->id) }}">
+                @csrf
+                <button type="submit" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">
+                  <i class="fas fa-check mr-1 text-green-600"></i>{{ $isUnread ? 'Mark read' : 'Read' }}
+                </button>
+              </form>
+              <form method="POST" action="{{ route('notifications.destroy', $notification->id) }}">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50">
+                  <i class="fas fa-times mr-1 text-red-500"></i>Dismiss
+                </button>
+              </form>
+            </div>
+          </div>
+        @endforeach
       </div>
 
-      <!-- Like Notification -->
-      <div class="flex items-start p-4 border-b border-gray-100 hover:bg-green-50 transition-colors duration-300 rounded-lg">
-        <div class="w-12 h-12 bg-blue-500 text-white rounded-full flex items-center justify-center mr-4 flex-shrink-0">
-          <i class="fas fa-heart text-lg"></i>
-        </div>
-        <div class="flex-1">
-          <p class="text-gray-800 mb-1">
-            <strong>Maria Santos</strong> liked your recent post about recycling ♻️
-          </p>
-          <div class="text-gray-500 text-sm">4 hours ago</div>
-        </div>
+      <div class="mt-6">
+        {{ $notifications->links() }}
       </div>
+    @else
+      <div class="text-center py-16">
+        <i class="fas fa-inbox text-gray-300 text-6xl mb-4"></i>
+        <p class="text-gray-600 text-lg">You’re all caught up! No notifications right now.</p>
+      </div>
+    @endif
+  </div>
 
-      <!-- Comment Notification -->
-      <div class="flex items-start p-4 border-b border-gray-100 hover:bg-green-50 transition-colors duration-300 rounded-lg">
-        <div class="w-12 h-12 bg-yellow-400 text-gray-800 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
-          <i class="fas fa-comment text-lg"></i>
+  <div class="grid md:grid-cols-2 gap-4 mt-6">
+    <div class="bg-white rounded-xl shadow-sm p-5 border border-green-100">
+      <h5 class="text-gray-800 font-semibold mb-3 flex items-center gap-2">
+        <i class="fas fa-filter text-green-600"></i>Category Preferences
+      </h5>
+      <p class="text-sm text-gray-500 mb-4">Toggle which alerts land in your inbox.</p>
+      <form method="POST" action="{{ route('notifications.preferences') }}" class="space-y-3">
+        @csrf
+        <div class="grid grid-cols-1 gap-2">
+          @foreach($categories as $key => $label)
+            <label class="flex items-center justify-between border border-gray-100 rounded-lg px-3 py-2 text-sm text-gray-700">
+              <div>
+                <p class="font-medium">{{ $label }}</p>
+                <p class="text-xs text-gray-500">{{ ucfirst($key) }} alerts</p>
+              </div>
+              <input type="hidden" name="preferences[{{ $key }}]" value="0">
+              <input type="checkbox" name="preferences[{{ $key }}]" value="1" {{ $preferences[$key] ? 'checked' : '' }} class="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-green-500">
+            </label>
+          @endforeach
         </div>
-        <div class="flex-1">
-          <p class="text-gray-800 mb-1">
-            <strong>Juan Dela Cruz</strong> commented: "This is a great initiative!"
-          </p>
-          <div class="text-gray-500 text-sm">6 hours ago</div>
-        </div>
-      </div>
+        <button type="submit" class="w-full mt-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">Save preferences</button>
+      </form>
+    </div>
 
-      <!-- Schedule Update Notification -->
-      <div class="flex items-start p-4 border-b border-gray-100 hover:bg-green-50 transition-colors duration-300 rounded-lg">
-        <div class="w-12 h-12 bg-blue-400 text-white rounded-full flex items-center justify-center mr-4 flex-shrink-0">
-          <i class="fas fa-calendar-day text-lg"></i>
-        </div>
-        <div class="flex-1">
-          <p class="text-gray-800 mb-1">
-            <strong>Garbage Schedule Update:</strong> Monday pickup is moved to Tuesday due to holiday.
-          </p>
-          <div class="text-gray-500 text-sm">1 day ago</div>
-        </div>
-      </div>
-
-      <!-- Reminder Notification -->
-      <div class="flex items-start p-4 border-b border-gray-100 hover:bg-green-50 transition-colors duration-300 rounded-lg">
-        <div class="w-12 h-12 bg-red-500 text-white rounded-full flex items-center justify-center mr-4 flex-shrink-0">
-          <i class="fas fa-exclamation-triangle text-lg"></i>
-        </div>
-        <div class="flex-1">
-          <p class="text-gray-800 mb-1">
-            <strong>Reminder:</strong> Please verify your email to receive updates and event alerts.
-          </p>
-          <div class="text-gray-500 text-sm">2 days ago</div>
-        </div>
-      </div>
-
-      <!-- Additional Notification Example -->
-      <div class="flex items-start p-4 hover:bg-green-50 transition-colors duration-300 rounded-lg">
-        <div class="w-12 h-12 bg-purple-500 text-white rounded-full flex items-center justify-center mr-4 flex-shrink-0">
-          <i class="fas fa-truck text-lg"></i>
-        </div>
-        <div class="flex-1">
-          <p class="text-gray-800 mb-1">
-            <strong>Truck Status Update:</strong> Cleanify Truck 02 is running 15 minutes ahead of schedule.
-          </p>
-          <div class="text-gray-500 text-sm">3 days ago</div>
-        </div>
-      </div>
+    <div class="bg-white rounded-xl shadow-sm p-5 border border-green-100">
+      <h5 class="text-gray-800 font-semibold mb-3 flex items-center gap-2">
+        <i class="fas fa-lightbulb text-yellow-500"></i>Tips
+      </h5>
+      <ul class="space-y-3 text-sm text-gray-600">
+        <li class="flex items-start gap-2"><i class="fas fa-bell text-green-600 mt-1"></i>Mark important alerts with the “View” button to jump right to the related page.</li>
+        <li class="flex items-start gap-2"><i class="fas fa-envelope text-green-600 mt-1"></i>Keep email reminders enabled in Settings to receive critical updates even when logged out.</li>
+        <li class="flex items-start gap-2"><i class="fas fa-sliders-h text-green-600 mt-1"></i>Mute categories you don’t need to cut down on noise.</li>
+      </ul>
     </div>
   </div>
 @endsection
