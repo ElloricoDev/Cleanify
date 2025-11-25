@@ -19,12 +19,24 @@ class ReportFeedController extends Controller
         $validated = $request->validate([
             'location' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string', 'max:1000'],
-            'image' => ['nullable', 'image', 'max:4096'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,gif,webp', 'max:4096'],
         ]);
 
         $imagePath = null;
         if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')->store('reports', 'public');
+            $file = $request->file('image');
+            
+            // Additional MIME type validation
+            $allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+            if (!in_array($file->getMimeType(), $allowedMimes)) {
+                return redirect()->back()
+                    ->withErrors(['image' => 'Invalid image type. Only JPEG, PNG, GIF, and WebP are allowed.'])
+                    ->withInput();
+            }
+
+            // Generate unique filename
+            $filename = uniqid() . '_' . time() . '.' . $file->getClientOriginalExtension();
+            $imagePath = $file->storeAs('reports', $filename, 'public');
         }
 
         Report::create([
@@ -33,6 +45,7 @@ class ReportFeedController extends Controller
             'description' => $validated['description'],
             'image_path' => $imagePath,
             'status' => 'pending',
+            'priority' => 'medium', // Default priority
         ]);
 
         return redirect()->route('dashboard')
@@ -90,6 +103,31 @@ class ReportFeedController extends Controller
                 'timestamp' => $comment->created_at?->diffForHumans() ?? 'Just now',
             ],
             'comments_count' => $commentsCount,
+        ]);
+    }
+
+    /**
+     * Get comments for a report.
+     */
+    public function getComments(Report $report): JsonResponse
+    {
+        $comments = $report->comments()
+            ->with('user')
+            ->latest()
+            ->get()
+            ->map(function ($comment) {
+                return [
+                    'id' => $comment->id,
+                    'author' => $comment->user?->name ?? 'Cleanify User',
+                    'avatar' => $comment->user?->getAvatarBgClasses() ?? 'bg-gray-400',
+                    'initial' => $comment->user?->getAvatarInitial() ?? '?',
+                    'comment' => $comment->comment,
+                    'timestamp' => $comment->created_at?->diffForHumans() ?? 'Just now',
+                ];
+            });
+
+        return response()->json([
+            'comments' => $comments,
         ]);
     }
 

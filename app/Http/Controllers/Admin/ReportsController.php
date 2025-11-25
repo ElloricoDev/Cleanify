@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\RejectReportRequest;
 use App\Http\Requests\Admin\ResolveReportRequest;
 use App\Models\Report;
+use App\Services\ActivityLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -37,7 +38,15 @@ class ReportsController extends Controller
             $query->where('status', $request->status);
         }
 
-        $reports = $query->orderBy('created_at', 'desc')->paginate(5);
+        // Filter by priority
+        if ($request->has('priority') && $request->priority && in_array($request->priority, ['low', 'medium', 'high', 'critical'])) {
+            $query->where('priority', $request->priority);
+        }
+
+        // Order by priority (critical first) then by created_at
+        $reports = $query->orderByRaw("FIELD(priority, 'critical', 'high', 'medium', 'low')")
+            ->orderBy('created_at', 'desc')
+            ->paginate(10);
 
         // Statistics
         $pendingReports = Report::where('status', 'pending')->count();
@@ -56,7 +65,94 @@ class ReportsController extends Controller
             'thisMonthReports' => $thisMonthReports,
             'search' => $request->search ?? '',
             'statusFilter' => $request->status ?? '',
+            'priorityFilter' => $request->priority ?? '',
         ]);
+    }
+
+    /**
+     * Bulk resolve reports.
+     */
+    public function bulkResolve(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'report_ids' => ['required', 'array'],
+            'report_ids.*' => ['exists:reports,id'],
+            'admin_notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $reports = Report::whereIn('id', $request->report_ids)->get();
+        $count = 0;
+
+        foreach ($reports as $report) {
+            $report->update([
+                'status' => 'resolved',
+                'admin_notes' => $request->admin_notes,
+                'resolved_by' => auth()->id(),
+                'resolved_at' => now(),
+            ]);
+
+            ActivityLogService::logReportResolved($report, $request->admin_notes);
+            $this->notifyReportOwner($report, 'resolved');
+            $count++;
+        }
+
+        return redirect()->route('admin.reports')
+            ->with('success', "{$count} report(s) resolved successfully!");
+    }
+
+    /**
+     * Bulk reject reports.
+     */
+    public function bulkReject(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'report_ids' => ['required', 'array'],
+            'report_ids.*' => ['exists:reports,id'],
+            'rejection_reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        $reports = Report::whereIn('id', $request->report_ids)->get();
+        $count = 0;
+
+        foreach ($reports as $report) {
+            $report->update([
+                'status' => 'rejected',
+                'rejection_reason' => $request->rejection_reason,
+                'resolved_by' => auth()->id(),
+                'resolved_at' => now(),
+            ]);
+
+            ActivityLogService::logReportRejected($report, $request->rejection_reason);
+            $this->notifyReportOwner($report, 'rejected');
+            $count++;
+        }
+
+        return redirect()->route('admin.reports')
+            ->with('success', "{$count} report(s) rejected successfully!");
+    }
+
+    /**
+     * Update report priority.
+     */
+    public function updatePriority(Request $request, string $id): RedirectResponse
+    {
+        $request->validate([
+            'priority' => ['required', 'in:low,medium,high,critical'],
+        ]);
+
+        $report = Report::findOrFail($id);
+        $oldPriority = $report->priority;
+        $report->update(['priority' => $request->priority]);
+
+        ActivityLogService::log(
+            'report.priority_updated',
+            $report,
+            "Report priority changed from {$oldPriority} to {$request->priority}",
+            ['old_priority' => $oldPriority, 'new_priority' => $request->priority]
+        );
+
+        return redirect()->route('admin.reports')
+            ->with('success', 'Report priority updated successfully!');
     }
 
     public function resolve(ResolveReportRequest $request, string $id): RedirectResponse
@@ -69,6 +165,9 @@ class ReportsController extends Controller
             'resolved_by' => auth()->id(),
             'resolved_at' => now(),
         ]);
+
+        // Log activity
+        ActivityLogService::logReportResolved($report, $request->admin_notes);
 
         $this->notifyReportOwner($report, 'resolved');
         $this->notifyFollowers($report, 'resolved');
@@ -87,6 +186,9 @@ class ReportsController extends Controller
             'resolved_by' => auth()->id(),
             'resolved_at' => now(),
         ]);
+
+        // Log activity
+        ActivityLogService::logReportRejected($report, $request->rejection_reason);
 
         $this->notifyReportOwner($report, 'rejected');
         $this->notifyFollowers($report, 'rejected');

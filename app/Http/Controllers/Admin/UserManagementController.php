@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateUserRequest;
 use App\Models\User;
+use App\Services\ActivityLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -60,11 +61,23 @@ class UserManagementController extends Controller
             return back()->withErrors(['is_admin' => 'You cannot remove your own admin privileges.']);
         }
 
+        $oldData = [
+            'name' => $user->name,
+            'email' => $user->email,
+            'is_admin' => $user->is_admin,
+        ];
+
         $user->update([
             'name' => $request->name,
             'email' => $request->email,
             'is_admin' => $request->is_admin ?? false,
         ]);
+
+        // Log activity
+        $changes = array_diff_assoc($user->getAttributes(), $oldData);
+        if (!empty($changes)) {
+            ActivityLogService::logUserUpdated($user, $changes);
+        }
 
         return redirect()->route('admin.users')
             ->with('success', 'User updated successfully!');
@@ -81,6 +94,9 @@ class UserManagementController extends Controller
         if (auth()->id() == $user->id) {
             return back()->withErrors(['delete' => 'You cannot delete your own account.']);
         }
+
+        // Log activity before deletion
+        ActivityLogService::logUserDeleted($user);
 
         $user->delete();
 

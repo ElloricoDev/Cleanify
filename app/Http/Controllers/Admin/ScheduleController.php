@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreScheduleRequest;
 use App\Http\Requests\Admin\UpdateScheduleRequest;
 use App\Models\Schedule;
+use App\Models\Truck;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -42,6 +43,12 @@ class ScheduleController extends Controller
         $inactiveSchedules = Schedule::where('status', 'inactive')->count();
         $trucksAssigned = Schedule::where('status', 'active')->distinct('truck')->count('truck');
 
+        // Get zones from config
+        $zones = array_keys(config('routes.surigao_city', []));
+
+        // Get trucks from database
+        $trucks = Truck::orderBy('code', 'asc')->get();
+
         return view('admin.schedule', [
             'activePage' => 'schedule',
             'schedules' => $schedules,
@@ -51,6 +58,8 @@ class ScheduleController extends Controller
             'trucksAssigned' => $trucksAssigned,
             'search' => $request->search ?? '',
             'statusFilter' => $request->status ?? '',
+            'zones' => $zones,
+            'trucks' => $trucks,
         ]);
     }
 

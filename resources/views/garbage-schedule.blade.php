@@ -62,13 +62,19 @@
         </div>
         <div class="space-y-4 max-h-60 overflow-y-auto pr-1">
           @forelse($upcomingPickups as $pickup)
-            <div class="flex items-center gap-4">
+            @php
+              $pickupZoneColor = $zoneColors[$pickup['area']] ?? ['bg' => '#10B981', 'text' => '#FFFFFF', 'border' => '#059669'];
+            @endphp
+            <div class="flex items-center gap-4 border-l-4 rounded pl-3 py-2" style="border-left-color: {{ $pickupZoneColor['border'] }};">
               <div class="text-center w-16">
-                <p class="text-lg font-bold text-green-600">{{ $pickup['date_display'] }}</p>
+                <p class="text-lg font-bold" style="color: {{ $pickupZoneColor['bg'] }};">{{ $pickup['date_display'] }}</p>
                 <p class="text-xs uppercase tracking-wide text-gray-500">{{ $pickup['day_label'] }}</p>
               </div>
               <div class="flex-1">
-                <p class="text-sm font-semibold text-gray-800">{{ $pickup['area'] }}</p>
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full" style="background-color: {{ $pickupZoneColor['bg'] }};"></div>
+                  <p class="text-sm font-semibold text-gray-800">{{ $pickup['area'] }}</p>
+                </div>
                 <p class="text-sm text-gray-500">{{ $pickup['time_range'] }} · Truck {{ $pickup['truck'] }}</p>
               </div>
               <span class="text-xs font-semibold px-2.5 py-1 rounded-full {{ $pickup['badge'] }}">{{ $pickup['waste_type'] }}</span>
@@ -121,7 +127,9 @@
           </button>
         </div>
         <div class="grid grid-cols-7 gap-3" id="calendar"></div>
-        <p class="text-xs text-gray-500 mt-4">Tip: hover/tap a date to see all pickups scheduled for that day.</p>
+        <p class="text-xs text-gray-500 mt-4">
+          <i class="fas fa-info-circle mr-1"></i>Tip: Each zone has a unique color. Hover/tap a date to see all pickups scheduled for that day.
+        </p>
       </div>
 
       <div class="space-y-6">
@@ -132,9 +140,15 @@
           @if($schedules->count())
             <div id="scheduleList" class="divide-y divide-gray-100 max-h-[480px] overflow-y-auto pr-1">
               @foreach($schedules as $schedule)
-                <div class="py-4 schedule-item" data-area="{{ Str::lower($schedule->area) }}" data-search="{{ Str::lower($schedule->area . ' ' . $schedule->days . ' ' . $schedule->truck) }}">
+                @php
+                  $zoneColor = $zoneColors[$schedule->area] ?? ['bg' => '#10B981', 'text' => '#FFFFFF', 'border' => '#059669'];
+                @endphp
+                <div class="py-4 schedule-item border-l-4" style="border-left-color: {{ $zoneColor['border'] }};" data-area="{{ Str::lower($schedule->area) }}" data-search="{{ Str::lower($schedule->area . ' ' . $schedule->days . ' ' . $schedule->truck) }}" data-zone-color="{{ $zoneColor['bg'] }}" data-zone-text="{{ $zoneColor['text'] }}">
                   <div class="flex items-center justify-between">
-                    <h6 class="font-semibold text-gray-800">{{ $schedule->area }}</h6>
+                    <div class="flex items-center gap-2">
+                      <div class="w-4 h-4 rounded-full" style="background-color: {{ $zoneColor['bg'] }};"></div>
+                      <h6 class="font-semibold text-gray-800">{{ $schedule->area }}</h6>
+                    </div>
                     <span class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-green-100 text-green-800">{{ ucfirst($schedule->status) }}</span>
                   </div>
                   <p class="text-sm text-gray-600 mt-1"><strong>Days:</strong> {{ $schedule->days }}</p>
@@ -146,6 +160,23 @@
           @else
             <p class="text-gray-600">No active schedules available.</p>
           @endif
+        </div>
+
+        <div class="bg-white rounded-2xl shadow p-6 border border-green-100">
+          <h5 class="text-green-700 font-semibold text-lg mb-4 flex items-center gap-2">
+            <i class="fas fa-palette"></i>Zone Color Legend
+          </h5>
+          <div class="space-y-2 max-h-60 overflow-y-auto pr-1">
+            @foreach($availableAreas as $area)
+              @php
+                $zoneColor = $zoneColors[$area] ?? ['bg' => '#10B981', 'text' => '#FFFFFF', 'border' => '#059669'];
+              @endphp
+              <div class="flex items-center gap-2 text-sm">
+                <div class="w-4 h-4 rounded-full flex-shrink-0" style="background-color: {{ $zoneColor['bg'] }};"></div>
+                <span class="text-gray-700 truncate">{{ $area }}</span>
+              </div>
+            @endforeach
+          </div>
         </div>
 
         <div class="bg-white rounded-2xl shadow p-6 border border-green-100">
@@ -166,7 +197,7 @@
 
 @push('scripts')
   @php
-    $scheduleData = $schedules->map(function ($schedule) {
+    $scheduleData = $schedules->map(function ($schedule) use ($zoneColors) {
         $days = collect(explode(',', $schedule->days))
             ->map(function ($day) {
                 return strtolower(trim($day));
@@ -179,6 +210,8 @@
             : (str_contains($text, 'non') ? 'Non-biodegradable'
             : (str_contains($text, 'recycl') ? 'Recyclables' : 'General'));
 
+        $zoneColor = $zoneColors[$schedule->area] ?? ['bg' => '#10B981', 'text' => '#FFFFFF', 'border' => '#059669'];
+
         return [
             'area' => $schedule->area,
             'days_list' => $days,
@@ -186,6 +219,7 @@
             'time_range' => $schedule->time_range,
             'truck' => $schedule->truck,
             'waste_type' => $wasteType,
+            'zone_color' => $zoneColor,
         ];
     });
   @endphp
@@ -201,6 +235,7 @@
     const serviceAreaSelect = document.getElementById('serviceAreaSelect');
     const nextPickupData = @json($nextPickup);
     const schedules = @json($scheduleData);
+    const zoneColorsMap = @json($zoneColors);
 
     let today = new Date();
     let currentMonth = today.getMonth();
@@ -253,19 +288,34 @@
         }
 
         if (filteredSchedules.length) {
-          const wasteType = filteredSchedules[0].waste_type || 'General';
-          if (wasteType === 'Biodegradable') {
-            div.classList.add('bg-lime-200', 'text-lime-900', 'border', 'border-lime-300', 'font-semibold');
-          } else if (wasteType === 'Non-biodegradable') {
-            div.classList.add('bg-amber-200', 'text-amber-900', 'border', 'border-amber-300', 'font-semibold');
-          } else if (wasteType === 'Recyclables') {
-            div.classList.add('bg-cyan-200', 'text-cyan-900', 'border', 'border-cyan-300', 'font-semibold');
+          // Use zone color for the first schedule on this day
+          const firstSchedule = filteredSchedules[0];
+          const zoneColor = firstSchedule.zone_color || { bg: '#10B981', text: '#FFFFFF', border: '#059669' };
+          
+          // If multiple zones on same day, use gradient or first zone color
+          if (filteredSchedules.length > 1) {
+            // Multiple zones - use a gradient or the first zone's color with indicator
+            div.style.backgroundColor = zoneColor.bg;
+            div.style.color = zoneColor.text;
+            div.style.borderColor = zoneColor.border;
+            div.style.borderWidth = '2px';
+            div.style.borderStyle = 'solid';
+            div.classList.add('font-semibold', 'shadow-md');
+            div.title = `${filteredSchedules.length} zones scheduled`;
           } else {
-            div.classList.add("bg-gradient-to-br", "from-blue-500", "to-green-600", "text-white", "font-semibold", "shadow-md");
+            // Single zone - use its color
+            div.style.backgroundColor = zoneColor.bg;
+            div.style.color = zoneColor.text;
+            div.style.borderColor = zoneColor.border;
+            div.style.borderWidth = '2px';
+            div.style.borderStyle = 'solid';
+            div.classList.add('font-semibold', 'shadow-md');
           }
         } else if (daySchedules.length) {
-          div.classList.add("bg-green-50", "text-gray-800", "border", "border-green-100");
+          // Has schedules but filtered out - show muted
+          div.classList.add("bg-gray-100", "text-gray-600", "border", "border-gray-200");
         } else {
+          // No schedules
           div.classList.add("bg-gray-100", "hover:bg-gray-200", "hover:scale-105", "text-gray-800");
         }
 
@@ -276,14 +326,20 @@
 
         if (summarySource.length) {
           div.addEventListener('click', () => {
-            const listItems = summarySource.map(item => `
-              <div class="border border-gray-100 rounded-lg p-3 mb-2">
-                <p class="font-semibold text-gray-800">${item.area}</p>
-                <p class="text-sm text-gray-600">Days: ${item.days_label}</p>
-                <p class="text-sm text-gray-600">Time: ${item.time_range}</p>
-                <p class="text-sm text-gray-600">Truck: ${item.truck}</p>
-              </div>
-            `).join('');
+            const listItems = summarySource.map(item => {
+              const zoneColor = item.zone_color || { bg: '#10B981', border: '#059669' };
+              return `
+                <div class="border-l-4 rounded-lg p-3 mb-2 bg-gray-50" style="border-left-color: ${zoneColor.border};">
+                  <div class="flex items-center gap-2 mb-2">
+                    <div class="w-3 h-3 rounded-full" style="background-color: ${zoneColor.bg};"></div>
+                    <p class="font-semibold text-gray-800">${item.area}</p>
+                  </div>
+                  <p class="text-sm text-gray-600">Days: ${item.days_label}</p>
+                  <p class="text-sm text-gray-600">Time: ${item.time_range}</p>
+                  <p class="text-sm text-gray-600">Truck: ${item.truck}</p>
+                </div>
+              `;
+            }).join('');
 
             document.getElementById('dayDetailsBody').innerHTML = listItems;
             document.getElementById('dayDetailsTitle').textContent = `Pickups on ${date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}`;

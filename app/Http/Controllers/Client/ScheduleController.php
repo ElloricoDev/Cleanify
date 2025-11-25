@@ -26,6 +26,12 @@ class ScheduleController extends Controller
         $availableAreas = $schedules->pluck('area')->unique()->values();
         $userArea = $user->service_area ?: ($availableAreas->first() ?? null);
 
+        // Generate zone colors
+        $zoneColors = [];
+        foreach ($availableAreas as $area) {
+            $zoneColors[$area] = $this->getZoneColor($area);
+        }
+
         return view('garbage-schedule', [
             'activePage' => 'schedule',
             'schedules' => $schedules,
@@ -38,6 +44,7 @@ class ScheduleController extends Controller
                 'sms' => (bool) $user->sms_notifications,
                 'push' => (bool) $user->push_notifications,
             ],
+            'zoneColors' => $zoneColors,
         ]);
     }
 
@@ -249,6 +256,37 @@ class ScheduleController extends Controller
             'Recyclables' => 'bg-cyan-100 text-cyan-800',
             default => 'bg-gray-100 text-gray-700',
         };
+    }
+
+    /**
+     * Get a consistent color for a zone based on its name.
+     */
+    protected function getZoneColor(string $zoneName): array
+    {
+        // Predefined color palette - 15 distinct colors for zones
+        $colors = [
+            ['bg' => '#EF4444', 'text' => '#FFFFFF', 'border' => '#DC2626'], // Red
+            ['bg' => '#F97316', 'text' => '#FFFFFF', 'border' => '#EA580C'], // Orange
+            ['bg' => '#F59E0B', 'text' => '#FFFFFF', 'border' => '#D97706'], // Amber
+            ['bg' => '#EAB308', 'text' => '#FFFFFF', 'border' => '#CA8A04'], // Yellow
+            ['bg' => '#84CC16', 'text' => '#FFFFFF', 'border' => '#65A30D'], // Lime
+            ['bg' => '#22C55E', 'text' => '#FFFFFF', 'border' => '#16A34A'], // Green
+            ['bg' => '#10B981', 'text' => '#FFFFFF', 'border' => '#059669'], // Emerald
+            ['bg' => '#14B8A6', 'text' => '#FFFFFF', 'border' => '#0D9488'], // Teal
+            ['bg' => '#06B6D4', 'text' => '#FFFFFF', 'border' => '#0891B2'], // Cyan
+            ['bg' => '#3B82F6', 'text' => '#FFFFFF', 'border' => '#2563EB'], // Blue
+            ['bg' => '#6366F1', 'text' => '#FFFFFF', 'border' => '#4F46E5'], // Indigo
+            ['bg' => '#8B5CF6', 'text' => '#FFFFFF', 'border' => '#7C3AED'], // Violet
+            ['bg' => '#A855F7', 'text' => '#FFFFFF', 'border' => '#9333EA'], // Purple
+            ['bg' => '#D946EF', 'text' => '#FFFFFF', 'border' => '#C026D3'], // Fuchsia
+            ['bg' => '#EC4899', 'text' => '#FFFFFF', 'border' => '#DB2777'], // Pink
+        ];
+
+        // Use hash of zone name to get consistent color
+        $hash = crc32($zoneName);
+        $index = abs($hash) % count($colors);
+        
+        return $colors[$index];
     }
 
     /**

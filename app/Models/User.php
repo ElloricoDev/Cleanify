@@ -22,12 +22,20 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'phone',
+        'address',
         'is_admin',
         'email_notifications',
         'sms_notifications',
         'push_notifications',
         'service_area',
         'notification_preferences',
+        'show_email',
+        'location_sharing',
+        'profile_visibility',
+        'tracker_refresh_interval',
+        'language',
+        'last_login_at',
     ];
 
     /**
@@ -55,6 +63,9 @@ class User extends Authenticatable
             'sms_notifications' => 'boolean',
             'push_notifications' => 'boolean',
             'notification_preferences' => 'array',
+            'show_email' => 'boolean',
+            'location_sharing' => 'boolean',
+            'last_login_at' => 'datetime',
         ];
     }
 

@@ -27,27 +27,30 @@ Route::middleware(['auth', 'not.admin'])->group(function () {
 
     Route::get('/community-reports', [App\Http\Controllers\Client\CommunityReportController::class, 'index'])->name('community-reports');
 
-    Route::get('/settings', function () {
-        return view('settings', ['activePage' => 'settings']);
-    })->name('settings');
+    Route::get('/settings', [App\Http\Controllers\Client\SettingsController::class, 'index'])->name('settings');
+    Route::patch('/settings/account', [App\Http\Controllers\Client\SettingsController::class, 'updateAccount'])->name('settings.account');
+    Route::patch('/settings/password', [App\Http\Controllers\Client\SettingsController::class, 'updatePassword'])->name('settings.password');
+    Route::patch('/settings/notifications', [App\Http\Controllers\Client\SettingsController::class, 'updateNotifications'])->name('settings.notifications');
+    Route::patch('/settings/privacy', [App\Http\Controllers\Client\SettingsController::class, 'updatePrivacy'])->name('settings.privacy');
+    Route::patch('/settings/preferences', [App\Http\Controllers\Client\SettingsController::class, 'updatePreferences'])->name('settings.preferences');
+    Route::delete('/settings/sessions/{sessionId}/revoke', [App\Http\Controllers\Client\SettingsController::class, 'revokeSession'])->name('settings.revoke-session');
+    Route::get('/settings/download-data', [App\Http\Controllers\Client\SettingsController::class, 'downloadData'])->name('settings.download-data');
+    Route::delete('/settings/account', [App\Http\Controllers\Client\SettingsController::class, 'deleteAccount'])->name('settings.delete-account');
 
-    Route::get('/profile', function () {
-        return view('profile', ['activePage' => 'profile']);
-    })->name('profile');
+    Route::get('/profile', [App\Http\Controllers\Client\ProfileController::class, 'index'])->name('profile');
+    Route::patch('/profile', [App\Http\Controllers\Client\ProfileController::class, 'update'])->name('profile.update');
+    
+    // Profile report management
+    Route::patch('/profile/reports/{report}', [App\Http\Controllers\Client\ProfileController::class, 'updateReport'])->name('profile.reports.update');
+    Route::delete('/profile/reports/{report}', [App\Http\Controllers\Client\ProfileController::class, 'deleteReport'])->name('profile.reports.delete');
 
     // Report feed interactions
-    Route::post('/reports', [App\Http\Controllers\Client\ReportFeedController::class, 'store'])->name('reports.store');
-    Route::post('/reports/{report}/like', [App\Http\Controllers\Client\ReportFeedController::class, 'toggleLike'])->name('reports.like');
-    Route::post('/reports/{report}/comment', [App\Http\Controllers\Client\ReportFeedController::class, 'storeComment'])->name('reports.comment');
+    Route::post('/reports', [App\Http\Controllers\Client\ReportFeedController::class, 'store'])->middleware('throttle.reports')->name('reports.store');
+    Route::post('/reports/{report}/like', [App\Http\Controllers\Client\ReportFeedController::class, 'toggleLike'])->middleware('throttle:60,1')->name('reports.like');
+    Route::post('/reports/{report}/comment', [App\Http\Controllers\Client\ReportFeedController::class, 'storeComment'])->middleware('throttle:30,1')->name('reports.comment');
+    Route::get('/reports/{report}/comments', [App\Http\Controllers\Client\ReportFeedController::class, 'getComments'])->name('reports.comments');
     Route::get('/reports/{report}', [App\Http\Controllers\Client\CommunityReportController::class, 'show'])->name('reports.show');
     Route::post('/reports/{report}/follow', [App\Http\Controllers\Client\ReportFeedController::class, 'toggleFollow'])->name('reports.follow');
-});
-
-// Profile management routes - only for regular users (not admins)
-Route::middleware(['auth', 'not.admin'])->group(function () {
-    Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
 // Admin pages - protected: requires authentication and user MUST be admin
@@ -64,6 +67,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::get('/reports', [App\Http\Controllers\Admin\ReportsController::class, 'index'])->name('reports');
     Route::post('/reports/{id}/resolve', [App\Http\Controllers\Admin\ReportsController::class, 'resolve'])->name('reports.resolve');
     Route::post('/reports/{id}/reject', [App\Http\Controllers\Admin\ReportsController::class, 'reject'])->name('reports.reject');
+    Route::post('/reports/bulk-resolve', [App\Http\Controllers\Admin\ReportsController::class, 'bulkResolve'])->name('reports.bulk-resolve');
+    Route::post('/reports/bulk-reject', [App\Http\Controllers\Admin\ReportsController::class, 'bulkReject'])->name('reports.bulk-reject');
+    Route::patch('/reports/{id}/priority', [App\Http\Controllers\Admin\ReportsController::class, 'updatePriority'])->name('reports.update-priority');
 
     // Schedule Management
     Route::get('/schedule', [App\Http\Controllers\Admin\ScheduleController::class, 'index'])->name('schedule');

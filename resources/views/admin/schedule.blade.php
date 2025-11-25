@@ -115,16 +115,17 @@
   <x-modal id="addScheduleModal" title="Add Schedule" icon="fas fa-plus-circle" color="green">
     <form id="addScheduleForm" method="POST" action="{{ route('admin.schedule.store') }}" class="space-y-4">
       @csrf
-      @foreach ([
-        ['label' => 'Barangay / Zone', 'icon' => 'fas fa-map-marker-alt', 'name' => 'area', 'type' => 'text', 'placeholder' => 'Enter location'],
-      ] as $field)
-        <div>
-          <label class="block text-gray-700 mb-2">
-            <i class="{{ $field['icon'] }} mr-2 text-green-600"></i>{{ $field['label'] }}
-          </label>
-          <input type="{{ $field['type'] }}" name="{{ $field['name'] }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="{{ $field['placeholder'] }}">
-        </div>
-      @endforeach
+      <div>
+        <label class="block text-gray-700 mb-2">
+          <i class="fas fa-map-marker-alt mr-2 text-green-600"></i>Barangay / Zone
+        </label>
+        <select name="area" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" required>
+          <option value="">Select a zone</option>
+          @foreach($zones as $zone)
+            <option value="{{ $zone }}">{{ $zone }}</option>
+          @endforeach
+        </select>
+      </div>
       <div>
         <label class="block text-gray-700 mb-2">
           <i class="fas fa-calendar-day mr-2 text-green-600"></i>Collection Days
@@ -149,9 +150,10 @@
         <label class="block text-gray-700 mb-2">
           <i class="fas fa-truck mr-2 text-green-600"></i>Truck Assigned
         </label>
-        <select name="truck" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
-          @foreach (['Truck 01','Truck 02','Truck 03','Truck 04','Truck 05'] as $truck)
-            <option value="{{ $truck }}">{{ $truck }}</option>
+        <select name="truck" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" required>
+          <option value="">Select a truck</option>
+          @foreach($trucks as $truck)
+            <option value="{{ $truck->code }}">{{ $truck->code }}@if($truck->driver) - {{ $truck->driver }}@endif</option>
           @endforeach
         </select>
       </div>
@@ -187,7 +189,12 @@
         <label class="block text-gray-700 mb-2">
           <i class="fas fa-map-marker-alt mr-2 text-blue-600"></i>Barangay / Zone
         </label>
-        <input type="text" name="area" id="editScheduleArea" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+        <select name="area" id="editScheduleArea" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+          <option value="">Select a zone</option>
+          @foreach($zones as $zone)
+            <option value="{{ $zone }}">{{ $zone }}</option>
+          @endforeach
+        </select>
       </div>
       <div>
         <label class="block text-gray-700 mb-2">
@@ -213,9 +220,10 @@
         <label class="block text-gray-700 mb-2">
           <i class="fas fa-truck mr-2 text-blue-600"></i>Truck Assigned
         </label>
-        <select name="truck" id="editScheduleTruck" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-          @foreach (['Truck 01','Truck 02','Truck 03','Truck 04','Truck 05'] as $truck)
-            <option value="{{ $truck }}">{{ $truck }}</option>
+        <select name="truck" id="editScheduleTruck" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+          <option value="">Select a truck</option>
+          @foreach($trucks as $truck)
+            <option value="{{ $truck->code }}">{{ $truck->code }}@if($truck->driver) - {{ $truck->driver }}@endif</option>
           @endforeach
         </select>
       </div>
