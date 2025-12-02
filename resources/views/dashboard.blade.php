@@ -144,89 +144,156 @@
 
 @push('scripts')
   <script>
-    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    document.addEventListener('DOMContentLoaded', function() {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
-    function searchReports() {
-      const query = document.getElementById('searchInput').value;
-      if (query.trim()) {
-        window.location.href = '{{ route("community-reports") }}?search=' + encodeURIComponent(query.trim());
+      // Search functionality
+      function searchReports() {
+        const query = document.getElementById('searchInput')?.value;
+        if (query && query.trim()) {
+          window.location.href = '{{ route("community-reports") }}?search=' + encodeURIComponent(query.trim());
+        }
       }
-    }
 
-    document.getElementById('searchInput')?.addEventListener('keypress', function(event) {
-      if (event.key === 'Enter') {
-        searchReports();
+      // Make searchReports available globally for onclick handler
+      window.searchReports = searchReports;
+
+      const searchInput = document.getElementById('searchInput');
+      if (searchInput) {
+        searchInput.addEventListener('keypress', function(event) {
+          if (event.key === 'Enter') {
+            searchReports();
+          }
+        });
       }
-    });
 
-    document.querySelectorAll('.like-button').forEach(button => {
-      button.addEventListener('click', function () {
-        const reportId = this.dataset.reportId;
+      // Like button functionality
+      document.querySelectorAll('.like-button').forEach(button => {
+        button.addEventListener('click', function () {
+          const reportId = this.dataset.reportId;
+          if (!reportId || !csrfToken) return;
 
-        fetch(`{{ url('/reports') }}/${reportId}/like`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': csrfToken,
-            'Accept': 'application/json',
-          },
-        })
-          .then(response => response.json())
-          .then(data => {
-            if (data.likes_count !== undefined) {
-              this.querySelector('.like-count').textContent = `(${data.likes_count})`;
-              this.querySelector('.like-label').textContent = data.liked ? 'Liked' : 'Like';
-              this.classList.toggle('text-green-600', data.liked);
-            }
+          // Disable button during request
+          this.disabled = true;
+          const originalHTML = this.innerHTML;
+
+          fetch(`{{ url('/reports') }}/${reportId}/like`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-TOKEN': csrfToken,
+              'Accept': 'application/json',
+            },
           })
-          .catch(() => {
-            showToast?.('error', 'Unable to update like right now.');
-          });
+            .then(response => {
+              if (!response.ok) {
+                return response.json().then(err => Promise.reject(err));
+              }
+              return response.json();
+            })
+            .then(data => {
+              if (data.likes_count !== undefined) {
+                const likeCount = this.querySelector('.like-count');
+                const likeLabel = this.querySelector('.like-label');
+                
+                if (likeCount) {
+                  likeCount.textContent = `(${data.likes_count})`;
+                }
+                if (likeLabel) {
+                  likeLabel.textContent = data.liked ? 'Liked' : 'Like';
+                }
+                
+                // Update button styling
+                if (data.liked) {
+                  this.classList.add('text-green-600');
+                  this.classList.remove('hover:text-green-600');
+                } else {
+                  this.classList.remove('text-green-600');
+                  this.classList.add('hover:text-green-600');
+                }
+              }
+            })
+            .catch((error) => {
+              console.error('Like error:', error);
+              if (typeof showToast === 'function') {
+                showToast('error', error.message || 'Unable to update like right now.');
+              }
+            })
+            .finally(() => {
+              this.disabled = false;
+            });
+        });
       });
-    });
 
-    document.querySelectorAll('.comment-form').forEach(form => {
-      form.addEventListener('submit', function (event) {
-        event.preventDefault();
-        const reportId = this.dataset.reportId;
-        const input = this.querySelector('input[name="comment"]');
-        const comment = input.value.trim();
-        if (!comment) return;
+      // Comment form functionality
+      document.querySelectorAll('.comment-form').forEach(form => {
+        form.addEventListener('submit', function (event) {
+          event.preventDefault();
+          const reportId = this.dataset.reportId;
+          const input = this.querySelector('input[name="comment"]');
+          const submitButton = this.querySelector('button[type="submit"]');
+          const comment = input?.value.trim();
+          
+          if (!comment || !reportId || !csrfToken) return;
 
-        fetch(`{{ url('/reports') }}/${reportId}/comment`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': csrfToken,
-            'Accept': 'application/json',
-          },
-          body: JSON.stringify({ comment }),
-        })
-          .then(response => response.json())
-          .then(data => {
-            if (data.comment) {
-              const list = document.getElementById(`comments-list-${reportId}`);
-              const wrapper = document.createElement('div');
-              wrapper.className = 'flex items-start gap-3';
-              wrapper.innerHTML = `
-                <div class="w-9 h-9 rounded-full ${data.comment.avatar ?? 'bg-gray-400'} flex items-center justify-center text-white font-semibold text-sm">
-                  ${data.comment.initial ?? '?'}
-                </div>
-                <div class="flex-1 bg-gray-50 rounded-2xl px-4 py-2">
-                  <div class="flex items-center justify-between">
-                    <p class="text-sm font-semibold text-gray-800">${data.comment.author}</p>
-                    <span class="text-xs text-gray-500">${data.comment.timestamp}</span>
-                  </div>
-                  <p class="text-sm text-gray-700">${data.comment.comment}</p>
-                </div>
-              `;
-              list.prepend(wrapper);
-              input.value = '';
-            }
+          // Disable form during submission
+          if (submitButton) submitButton.disabled = true;
+          if (input) input.disabled = true;
+
+          fetch(`{{ url('/reports') }}/${reportId}/comment`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-TOKEN': csrfToken,
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify({ comment }),
           })
-          .catch(() => {
-            showToast?.('error', 'Unable to post comment right now.');
-          });
+            .then(response => {
+              if (!response.ok) {
+                return response.json().then(err => Promise.reject(err));
+              }
+              return response.json();
+            })
+            .then(data => {
+              if (data.comment) {
+                const list = document.getElementById(`comments-list-${reportId}`);
+                if (list) {
+                  const wrapper = document.createElement('div');
+                  wrapper.className = 'flex items-start gap-3';
+                  wrapper.innerHTML = `
+                    <div class="w-9 h-9 rounded-full ${data.comment.avatar ?? 'bg-gray-400'} flex items-center justify-center text-white font-semibold text-sm">
+                      ${data.comment.initial ?? '?'}
+                    </div>
+                    <div class="flex-1 bg-gray-50 rounded-2xl px-4 py-2">
+                      <div class="flex items-center justify-between">
+                        <p class="text-sm font-semibold text-gray-800">${data.comment.author ?? 'You'}</p>
+                        <span class="text-xs text-gray-500">${data.comment.timestamp ?? 'Just now'}</span>
+                      </div>
+                      <p class="text-sm text-gray-700">${data.comment.comment}</p>
+                    </div>
+                  `;
+                  list.prepend(wrapper);
+                }
+                if (input) input.value = '';
+                
+                if (typeof showToast === 'function') {
+                  showToast('success', 'Comment posted successfully!');
+                }
+              }
+            })
+            .catch((error) => {
+              console.error('Comment error:', error);
+              if (typeof showToast === 'function') {
+                const errorMessage = error.message || (error.errors?.comment?.[0]) || 'Unable to post comment right now.';
+                showToast('error', errorMessage);
+              }
+            })
+            .finally(() => {
+              if (submitButton) submitButton.disabled = false;
+              if (input) input.disabled = false;
+            });
+        });
       });
     });
   </script>

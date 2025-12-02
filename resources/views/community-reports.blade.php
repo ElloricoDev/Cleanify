@@ -79,7 +79,14 @@
               {{ $report->user?->getAvatarInitial() ?? 'C' }}
             </div>
             <div class="flex-1">
-              <p class="font-semibold text-gray-800">{{ $report->user->name ?? 'Cleanify User' }}</p>
+              <div class="flex items-center gap-2">
+                <p class="font-semibold text-gray-800">{{ $report->user->name ?? 'Cleanify User' }}</p>
+                @if($report->user && $report->user->id !== auth()->id())
+                  <button onclick="openReportUserModal({{ $report->user->id }}, '{{ $report->user->name }}')" class="text-xs text-red-600 hover:text-red-700 hover:underline" title="Report this user">
+                    <i class="fas fa-flag"></i>
+                  </button>
+                @endif
+              </div>
               <p class="text-sm text-gray-500 flex items-center gap-1"><i class="fas fa-map-marker-alt"></i>{{ $report->location }}</p>
             </div>
             <span class="text-xs font-semibold px-3 py-1 rounded-full {{ $report->getStatusBadgeBgClass() }}">{{ ucfirst($report->status) }}</span>
@@ -112,6 +119,42 @@
 @endsection
 
 @push('modals')
+  <x-modal id="reportUserModal" title="Report User" icon="fas fa-flag" color="red">
+    <form id="reportUserForm" class="space-y-4">
+      @csrf
+      <input type="hidden" id="reportedUserId" name="reported_user_id">
+      <div>
+        <p class="text-sm text-gray-600 mb-2">You are reporting: <strong id="reportedUserName"></strong></p>
+        <p class="text-xs text-gray-500">Please provide details about why you're reporting this user. False reports may result in action against your account.</p>
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2"><i class="fas fa-exclamation-triangle mr-2 text-red-600"></i>Reason</label>
+        <select name="reason" id="reportReason" class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-500" required>
+          <option value="">Select a reason</option>
+          <option value="spam">Spam</option>
+          <option value="harassment">Harassment</option>
+          <option value="inappropriate_content">Inappropriate Content</option>
+          <option value="fake_account">Fake Account</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2"><i class="fas fa-comment mr-2 text-red-600"></i>Additional Details (Optional)</label>
+        <textarea name="description" id="reportDescription" rows="4" class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 resize-none" placeholder="Provide any additional information that might help us review this report..."></textarea>
+      </div>
+    </form>
+    @slot('footer')
+      <div class="flex justify-end space-x-3">
+        <button onclick="closeModal('reportUserModal')" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-300">
+          <i class="fas fa-times mr-2"></i>Cancel
+        </button>
+        <button type="submit" form="reportUserForm" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-300">
+          <i class="fas fa-flag mr-2"></i>Submit Report
+        </button>
+      </div>
+    @endslot
+  </x-modal>
+
   <x-modal id="reportDetailModal" title="Report Details" icon="fas fa-clipboard-list" color="green" size="xl">
     <div class="space-y-4 text-gray-700">
       <div class="flex items-center gap-3">
@@ -176,9 +219,96 @@
   <script>
     const reportDetailUrlTemplate = '{{ route('reports.show', ['report' => '__ID__']) }}';
     const reportFollowUrlTemplate = '{{ route('reports.follow', ['report' => '__ID__']) }}';
+    const reportUserUrlTemplate = '{{ route('users.report', ['user' => '__ID__']) }}';
     let detailMap;
     let detailMarker;
     let activeReportId = null;
+
+    function openReportUserModal(userId, userName) {
+      document.getElementById('reportedUserId').value = userId;
+      document.getElementById('reportedUserName').textContent = userName;
+      document.getElementById('reportReason').value = '';
+      document.getElementById('reportDescription').value = '';
+      openModal('reportUserModal');
+    }
+
+    document.getElementById('reportUserForm')?.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      const userId = formData.get('reported_user_id');
+      const reason = formData.get('reason');
+      
+      // Validate reason is selected
+      if (!reason) {
+        if (typeof showToast === 'function') {
+          showToast('error', 'Please select a reason for reporting this user.');
+        } else {
+          alert('Please select a reason for reporting this user.');
+        }
+        return;
+      }
+      
+      fetch(reportUserUrlTemplate.replace('__ID__', userId), {
+        method: 'POST',
+        headers: {
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+          'Accept': 'application/json',
+        },
+        body: formData,
+      })
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok) {
+          throw { response, error: data };
+        }
+        return data;
+      })
+      .then(data => {
+        if (data.success) {
+          if (typeof showToast === 'function') {
+            showToast('success', data.message || 'User reported successfully. Our team will review this report.');
+          }
+          closeModal('reportUserModal');
+          // Reset form
+          document.getElementById('reportReason').value = '';
+          document.getElementById('reportDescription').value = '';
+        } else if (data.error) {
+          if (typeof showToast === 'function') {
+            showToast('error', data.error);
+          } else {
+            alert(data.error);
+          }
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        let errorMessage = 'Failed to submit report. Please try again.';
+        
+        if (error.error) {
+          // Handle Laravel validation errors (format: { message: "...", errors: { field: ["error"] } })
+          if (error.error.errors) {
+            const errors = error.error.errors;
+            const firstErrorKey = Object.keys(errors)[0];
+            const firstError = errors[firstErrorKey];
+            errorMessage = Array.isArray(firstError) ? firstError[0] : firstError;
+          } 
+          // Handle custom error messages
+          else if (error.error.error) {
+            errorMessage = error.error.error;
+          } 
+          // Handle message field
+          else if (error.error.message && error.error.message !== 'The given data was invalid.') {
+            errorMessage = error.error.message;
+          }
+        }
+        
+        if (typeof showToast === 'function') {
+          showToast('error', errorMessage);
+        } else {
+          alert(errorMessage);
+        }
+      });
+    });
 
     document.getElementById('reportImageInput')?.addEventListener('change', function () {
       const label = document.getElementById('reportImageLabel');

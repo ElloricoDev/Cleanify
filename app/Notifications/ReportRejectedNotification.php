@@ -29,11 +29,17 @@ class ReportRejectedNotification extends Notification
      */
     public function via(object $notifiable): array
     {
-        // Only send if user has email notifications enabled
-        if ($notifiable->email_notifications ?? true) {
-            return ['mail'];
+        $channels = ['database'];
+        
+        // Check if user has email notifications enabled and reports category enabled
+        $preferences = $notifiable->notification_preferences ?? [];
+        $reportsEnabled = $preferences['reports'] ?? true;
+        
+        if (($notifiable->email_notifications ?? true) && $reportsEnabled) {
+            $channels[] = 'mail';
         }
-        return [];
+        
+        return $channels;
     }
 
     /**
@@ -65,8 +71,12 @@ class ReportRejectedNotification extends Notification
                                     ->line($this->report->rejection_reason);
                     })
                     ->line('Reviewed by: ' . $resolverName)
-                    ->line('Reviewed on: ' . $this->report->resolved_at->format('F d, Y \a\t h:i A'))
-                    ->action('View Report', url('/community-reports'))
+                    ->when($this->report->resolved_at, function ($mail) {
+                        return $mail->line('Reviewed on: ' . $this->report->resolved_at->format('F d, Y \a\t h:i A'));
+                    }, function ($mail) {
+                        return $mail->line('Reviewed on: ' . now()->format('F d, Y \a\t h:i A'));
+                    })
+                    ->action('View Report', route('community-reports'))
                     ->line('If you have any questions, please feel free to submit a new report.');
     }
 
@@ -87,7 +97,7 @@ class ReportRejectedNotification extends Notification
             'message' => 'Location: ' . $this->report->location,
             'icon' => 'fa-times-circle',
             'color' => 'bg-red-600',
-            'url' => url('/community-reports'),
+            'url' => '/community-reports',
         ];
     }
 }

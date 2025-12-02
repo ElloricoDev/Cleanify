@@ -55,6 +55,8 @@
             <tr class="hover:bg-gray-50 transition-colors duration-200" data-schedule="{{ json_encode([
               'id' => $schedule->id,
               'area' => $schedule->area,
+              'schedule_type' => $schedule->schedule_type,
+              'specific_date' => $schedule->specific_date?->format('Y-m-d'),
               'days' => $schedule->days,
               'time_start' => $schedule->time_start->format('H:i'),
               'time_end' => $schedule->time_end->format('H:i'),
@@ -63,7 +65,16 @@
             ]) }}">
               <td class="px-4 py-3">{{ $schedule->id }}</td>
               <td class="px-4 py-3 font-medium text-gray-900">{{ $schedule->area }}</td>
-              <td class="px-4 py-3 text-gray-600">{{ $schedule->days }}</td>
+              <td class="px-4 py-3 text-gray-600">
+                @if($schedule->schedule_type === 'specific_date')
+                  <span class="inline-flex items-center gap-1">
+                    <i class="fas fa-calendar-day text-blue-600"></i>
+                    {{ $schedule->specific_date?->format('M d, Y') }}
+                  </span>
+                @else
+                  {{ $schedule->days }}
+                @endif
+              </td>
               <td class="px-4 py-3 text-gray-600">{{ $schedule->time_range }}</td>
               <td class="px-4 py-3 text-gray-600">{{ $schedule->truck }}</td>
               <td class="px-4 py-3">
@@ -128,13 +139,28 @@
       </div>
       <div>
         <label class="block text-gray-700 mb-2">
+          <i class="fas fa-calendar-check mr-2 text-green-600"></i>Schedule Type
+        </label>
+        <select name="schedule_type" id="addScheduleType" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" required>
+          <option value="recurring">Recurring (By Day of Week)</option>
+          <option value="specific_date">Specific Date</option>
+        </select>
+      </div>
+      <div id="addRecurringDays" class="schedule-type-field">
+        <label class="block text-gray-700 mb-2">
           <i class="fas fa-calendar-day mr-2 text-green-600"></i>Collection Days
         </label>
-        <select name="days" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
+        <select name="days" id="addScheduleDays" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
           @foreach (['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday','Monday & Thursday','Tuesday & Friday'] as $option)
             <option value="{{ $option }}">{{ $option }}</option>
           @endforeach
         </select>
+      </div>
+      <div id="addSpecificDate" class="schedule-type-field hidden">
+        <label class="block text-gray-700 mb-2">
+          <i class="fas fa-calendar-alt mr-2 text-green-600"></i>Specific Date
+        </label>
+        <input type="date" name="specific_date" id="addScheduleSpecificDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" min="{{ date('Y-m-d') }}">
       </div>
       <div>
         <label class="block text-gray-700 mb-2">
@@ -198,6 +224,15 @@
       </div>
       <div>
         <label class="block text-gray-700 mb-2">
+          <i class="fas fa-calendar-check mr-2 text-blue-600"></i>Schedule Type
+        </label>
+        <select name="schedule_type" id="editScheduleType" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+          <option value="recurring">Recurring (By Day of Week)</option>
+          <option value="specific_date">Specific Date</option>
+        </select>
+      </div>
+      <div id="editRecurringDays" class="schedule-type-field">
+        <label class="block text-gray-700 mb-2">
           <i class="fas fa-calendar-day mr-2 text-blue-600"></i>Collection Days
         </label>
         <select name="days" id="editScheduleDays" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
@@ -205,6 +240,12 @@
             <option value="{{ $option }}">{{ $option }}</option>
           @endforeach
         </select>
+      </div>
+      <div id="editSpecificDate" class="schedule-type-field hidden">
+        <label class="block text-gray-700 mb-2">
+          <i class="fas fa-calendar-alt mr-2 text-blue-600"></i>Specific Date
+        </label>
+        <input type="date" name="specific_date" id="editScheduleSpecificDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" min="{{ date('Y-m-d') }}">
       </div>
       <div>
         <label class="block text-gray-700 mb-2">
@@ -301,16 +342,60 @@
       const form = document.getElementById('editScheduleForm');
       form.action = `/admin/schedule/${id}`;
       document.getElementById('editScheduleId').value = schedule.id;
-      document.getElementById('editScheduleDays').value = schedule.days;
+      document.getElementById('editScheduleType').value = schedule.schedule_type || 'recurring';
       document.getElementById('editScheduleTimeStart').value = schedule.time_start;
       document.getElementById('editScheduleTimeEnd').value = schedule.time_end;
       document.getElementById('editScheduleTruck').value = schedule.truck;
       document.getElementById('editScheduleStatus').value = schedule.status;
-      
       document.getElementById('editScheduleArea').value = schedule.area;
+      
+      // Handle schedule type fields
+      toggleScheduleTypeFields('edit', schedule.schedule_type || 'recurring');
+      
+      if (schedule.schedule_type === 'specific_date') {
+        document.getElementById('editScheduleSpecificDate').value = schedule.specific_date || '';
+      } else {
+        document.getElementById('editScheduleDays').value = schedule.days || '';
+      }
       
       openModal('editScheduleModal');
     }
+    
+    function toggleScheduleTypeFields(prefix, scheduleType) {
+      const recurringField = document.getElementById(`${prefix}RecurringDays`);
+      const specificDateField = document.getElementById(`${prefix}SpecificDate`);
+      const daysInput = document.getElementById(`${prefix}ScheduleDays`);
+      const specificDateInput = document.getElementById(`${prefix}ScheduleSpecificDate`);
+      
+      if (scheduleType === 'specific_date') {
+        recurringField.classList.add('hidden');
+        specificDateField.classList.remove('hidden');
+        if (daysInput) daysInput.removeAttribute('required');
+        if (specificDateInput) specificDateInput.setAttribute('required', 'required');
+      } else {
+        recurringField.classList.remove('hidden');
+        specificDateField.classList.add('hidden');
+        if (daysInput) daysInput.setAttribute('required', 'required');
+        if (specificDateInput) specificDateInput.removeAttribute('required');
+      }
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+      const addScheduleType = document.getElementById('addScheduleType');
+      const editScheduleType = document.getElementById('editScheduleType');
+      
+      if (addScheduleType) {
+        addScheduleType.addEventListener('change', function() {
+          toggleScheduleTypeFields('add', this.value);
+        });
+      }
+      
+      if (editScheduleType) {
+        editScheduleType.addEventListener('change', function() {
+          toggleScheduleTypeFields('edit', this.value);
+        });
+      }
+    });
 
     function openDeleteScheduleModal(id) {
       currentScheduleId = id;

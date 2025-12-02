@@ -8,7 +8,7 @@ Route::get('/', function () {
 });
 
 // User pages - protected: requires authentication and user must NOT be admin
-Route::middleware(['auth', 'not.admin'])->group(function () {
+Route::middleware(['auth', 'not.admin', 'not.banned'])->group(function () {
     Route::get('/dashboard', [App\Http\Controllers\Client\DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('/garbage-schedule', [App\Http\Controllers\Client\ScheduleController::class, 'index'])->name('garbage-schedule');
@@ -51,6 +51,9 @@ Route::middleware(['auth', 'not.admin'])->group(function () {
     Route::get('/reports/{report}/comments', [App\Http\Controllers\Client\ReportFeedController::class, 'getComments'])->name('reports.comments');
     Route::get('/reports/{report}', [App\Http\Controllers\Client\CommunityReportController::class, 'show'])->name('reports.show');
     Route::post('/reports/{report}/follow', [App\Http\Controllers\Client\ReportFeedController::class, 'toggleFollow'])->name('reports.follow');
+    
+    // User reporting
+    Route::post('/users/{user}/report', [App\Http\Controllers\Client\UserReportController::class, 'store'])->name('users.report');
 });
 
 // Admin pages - protected: requires authentication and user MUST be admin
@@ -62,6 +65,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::get('/users', [App\Http\Controllers\Admin\UserManagementController::class, 'index'])->name('users');
     Route::put('/users/{id}', [App\Http\Controllers\Admin\UserManagementController::class, 'update'])->name('users.update');
     Route::delete('/users/{id}', [App\Http\Controllers\Admin\UserManagementController::class, 'destroy'])->name('users.destroy');
+    Route::post('/users/{id}/ban', [App\Http\Controllers\Admin\UserManagementController::class, 'ban'])->name('users.ban');
+    Route::post('/users/{id}/unban', [App\Http\Controllers\Admin\UserManagementController::class, 'unban'])->name('users.unban');
 
     // Reports Management
     Route::get('/reports', [App\Http\Controllers\Admin\ReportsController::class, 'index'])->name('reports');
@@ -91,6 +96,10 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('/settings/profile', [App\Http\Controllers\Admin\SettingsController::class, 'updateProfile'])->name('settings.profile');
     Route::post('/settings/password', [App\Http\Controllers\Admin\SettingsController::class, 'updatePassword'])->name('settings.password');
     Route::post('/settings/notifications', [App\Http\Controllers\Admin\SettingsController::class, 'updateNotifications'])->name('settings.notifications');
+
+    // User Reports Management
+    Route::get('/user-reports', [App\Http\Controllers\Admin\UserReportController::class, 'index'])->name('user-reports');
+    Route::put('/user-reports/{id}', [App\Http\Controllers\Admin\UserReportController::class, 'update'])->name('user-reports.update');
 });
 
 require __DIR__.'/auth.php';

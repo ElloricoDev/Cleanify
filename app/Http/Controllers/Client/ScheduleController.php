@@ -97,25 +97,37 @@ class ScheduleController extends Controller
             return null;
         }
 
-        $matching = $schedules->firstWhere('area', $area);
-        if (!$matching) {
-            return null;
-        }
-        
-        $nextDate = $this->calculateNextOccurrence($matching);
-        if (!$nextDate) {
+        // Get all matching schedules for the area (both recurring and specific date)
+        $matchingSchedules = $schedules->where('area', $area);
+        if ($matchingSchedules->isEmpty()) {
             return null;
         }
 
-        $wasteType = $this->determineWasteType($matching);
+        $reference = Carbon::now();
+        $nextPickup = null;
+        $nextDate = null;
+
+        foreach ($matchingSchedules as $schedule) {
+            $scheduleDate = $this->calculateNextOccurrence($schedule, $reference);
+            if ($scheduleDate && (!$nextDate || $scheduleDate->lessThan($nextDate))) {
+                $nextDate = $scheduleDate;
+                $nextPickup = $schedule;
+            }
+        }
+
+        if (!$nextDate || !$nextPickup) {
+            return null;
+        }
+
+        $wasteType = $this->determineWasteType($nextPickup);
 
         return [
-            'area' => $matching->area,
+            'area' => $nextPickup->area,
             'datetime_iso' => $nextDate->toIso8601String(),
             'date_display' => $nextDate->format('l, F j'),
             'time_display' => $nextDate->format('g:i A'),
-            'time_range' => $matching->time_range,
-            'truck' => $matching->truck,
+            'time_range' => $nextPickup->time_range,
+            'truck' => $nextPickup->truck,
             'waste_type' => $wasteType,
             'badge' => $this->wasteBadgeClass($wasteType),
         ];
@@ -130,22 +142,49 @@ class ScheduleController extends Controller
         $entries = [];
 
         foreach ($schedules as $schedule) {
-            $dayIndexes = $this->parseDayIndexes($schedule->days);
-            foreach ($dayIndexes as $dayIndex) {
-                $nextDate = $this->calculateNextOccurrence($schedule, $reference, $dayIndex);
-                if ($nextDate) {
-                    $wasteType = $this->determineWasteType($schedule);
-                    $entries[] = [
-                        'area' => $schedule->area,
-                        'day_label' => $nextDate->format('l'),
-                        'date_display' => $nextDate->format('M d'),
-                        'time_display' => $nextDate->format('g:i A'),
-                        'time_range' => $schedule->time_range,
-                        'truck' => $schedule->truck,
-                        'waste_type' => $wasteType,
-                        'badge' => $this->wasteBadgeClass($wasteType),
-                        'datetime_iso' => $nextDate->toIso8601String(),
-                    ];
+            if ($schedule->schedule_type === 'specific_date') {
+                // Handle specific date schedules
+                if ($schedule->specific_date && $schedule->specific_date->greaterThanOrEqualTo($reference->startOfDay())) {
+                    $nextDate = Carbon::parse($schedule->specific_date);
+                    if ($schedule->time_start) {
+                        $nextDate->setTimeFromTimeString($schedule->time_start);
+                    }
+                    if ($nextDate->greaterThanOrEqualTo($reference)) {
+                        $wasteType = $this->determineWasteType($schedule);
+                        $entries[] = [
+                            'area' => $schedule->area,
+                            'day_label' => $nextDate->format('l'),
+                            'date_display' => $nextDate->format('M d'),
+                            'time_display' => $nextDate->format('g:i A'),
+                            'time_range' => $schedule->time_range,
+                            'truck' => $schedule->truck,
+                            'waste_type' => $wasteType,
+                            'badge' => $this->wasteBadgeClass($wasteType),
+                            'datetime_iso' => $nextDate->toIso8601String(),
+                        ];
+                    }
+                }
+            } else {
+                // Handle recurring schedules
+                if ($schedule->days) {
+                    $dayIndexes = $this->parseDayIndexes($schedule->days);
+                    foreach ($dayIndexes as $dayIndex) {
+                        $nextDate = $this->calculateNextOccurrence($schedule, $reference, $dayIndex);
+                        if ($nextDate) {
+                            $wasteType = $this->determineWasteType($schedule);
+                            $entries[] = [
+                                'area' => $schedule->area,
+                                'day_label' => $nextDate->format('l'),
+                                'date_display' => $nextDate->format('M d'),
+                                'time_display' => $nextDate->format('g:i A'),
+                                'time_range' => $schedule->time_range,
+                                'truck' => $schedule->truck,
+                                'waste_type' => $wasteType,
+                                'badge' => $this->wasteBadgeClass($wasteType),
+                                'datetime_iso' => $nextDate->toIso8601String(),
+                            ];
+                        }
+                    }
                 }
             }
         }
@@ -163,6 +202,33 @@ class ScheduleController extends Controller
     protected function calculateNextOccurrence(Schedule $schedule, ?Carbon $reference = null, ?int $specificDayIndex = null): ?Carbon
     {
         $reference = $reference ? $reference->copy() : Carbon::now();
+
+        // Handle specific date schedules
+        if ($schedule->schedule_type === 'specific_date' && $schedule->specific_date) {
+            $target = Carbon::parse($schedule->specific_date);
+            
+            // Only return if the date is today or in the future
+            if ($target->lessThan($reference->startOfDay())) {
+                return null; // Past date, skip
+            }
+
+            if ($schedule->time_start) {
+                $target->setTimeFromTimeString($schedule->time_start);
+            }
+
+            // Only return if the datetime is in the future
+            if ($target->greaterThanOrEqualTo($reference)) {
+                return $target;
+            }
+
+            return null;
+        }
+
+        // Handle recurring schedules
+        if (!$schedule->days) {
+            return null;
+        }
+
         $dayIndexes = $specificDayIndex !== null ? [$specificDayIndex] : $this->parseDayIndexes($schedule->days);
 
         $possible = collect($dayIndexes)
@@ -192,8 +258,12 @@ class ScheduleController extends Controller
     /**
      * Convert schedule days string to an array of week day indexes.
      */
-    protected function parseDayIndexes(string $days): array
+    protected function parseDayIndexes(?string $days): array
     {
+        if (!$days) {
+            return [];
+        }
+
         $dayMap = [
             'sunday' => 0,
             'monday' => 1,
@@ -238,7 +308,7 @@ class ScheduleController extends Controller
      */
     protected function determineWasteType(Schedule $schedule): string
     {
-        $text = strtolower($schedule->days . ' ' . $schedule->area);
+        $text = strtolower(($schedule->days ?? '') . ' ' . $schedule->area);
 
         return match (true) {
             str_contains($text, 'biodegradable') => 'Biodegradable',

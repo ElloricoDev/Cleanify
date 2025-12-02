@@ -15,20 +15,22 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        // Seed users and community reports
+        $this->call(UsersAndReportsSeeder::class);
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
-
-        // Seed reports if users exist
-        $this->call(ReportSeeder::class);
+        // Seed reports if users exist (if ReportSeeder exists)
+        if (class_exists(ReportSeeder::class)) {
+            $this->call(ReportSeeder::class);
+        }
         
-        // Seed schedules
-        $this->call(ScheduleSeeder::class);
+        // Seed schedules (if ScheduleSeeder exists)
+        if (class_exists(ScheduleSeeder::class)) {
+            $this->call(ScheduleSeeder::class);
+        }
         
-        // Seed trucks
-        $this->call(TruckSeeder::class);
+        // Seed trucks (if TruckSeeder exists)
+        if (class_exists(TruckSeeder::class)) {
+            $this->call(TruckSeeder::class);
+        }
     }
 }

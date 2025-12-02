@@ -96,9 +96,15 @@
                 </span>
               </td>
               <td class="px-4 py-3">
-                <span class="text-green-600 font-semibold">
-                  <i class="fas fa-circle text-xs mr-1"></i>Active
-                </span>
+                @if($user->isBanned())
+                  <span class="text-red-600 font-semibold">
+                    <i class="fas fa-ban text-xs mr-1"></i>Banned
+                  </span>
+                @else
+                  <span class="text-green-600 font-semibold">
+                    <i class="fas fa-circle text-xs mr-1"></i>Active
+                  </span>
+                @endif
               </td>
               <td class="px-4 py-3 text-gray-600">{{ $user->created_at->format('M d, Y') }}</td>
               <td class="px-4 py-3">
@@ -109,6 +115,17 @@
                   <button onclick="openUserEdit({{ $user->id }})" class="w-8 h-8 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors duration-300">
                     <i class="fas fa-edit text-xs"></i>
                   </button>
+                  @if(auth()->id() != $user->id && !$user->isAdmin())
+                    @if($user->isBanned())
+                      <button onclick="openUserUnban({{ $user->id }})" class="w-8 h-8 bg-green-500 text-white rounded hover:bg-green-600 transition-colors duration-300 flex items-center justify-center" title="Unban User">
+                        <i class="fas fa-unlock text-sm"></i>
+                      </button>
+                    @else
+                      <button onclick="openUserBan({{ $user->id }})" class="w-8 h-8 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors duration-300 flex items-center justify-center" title="Ban User">
+                        <i class="fas fa-ban text-sm"></i>
+                      </button>
+                    @endif
+                  @endif
                   @if(auth()->id() != $user->id)
                     <button onclick="openUserDelete({{ $user->id }})" class="w-8 h-8 bg-red-500 text-white rounded hover:bg-red-600 transition-colors duration-300">
                       <i class="fas fa-trash text-xs"></i>
@@ -249,6 +266,58 @@
       </div>
     @endslot
   </x-modal>
+
+  <x-modal id="banUserModal" title="Ban User" icon="fas fa-ban" color="orange">
+    <div class="text-center">
+      <div class="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <i class="fas fa-ban text-orange-600 text-2xl"></i>
+      </div>
+      <h4 class="text-xl font-semibold text-gray-800 mb-2">Confirm Ban</h4>
+      <p class="text-gray-600 mb-4">Are you sure you want to ban this user? Banned users will not be able to log in or access the application.</p>
+      <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4 text-left flex">
+        <i class="fas fa-exclamation-circle text-yellow-400 mr-3 mt-1"></i>
+        <p class="text-sm text-yellow-700">
+          The user will be immediately logged out if currently active and will not be able to access their account.
+        </p>
+      </div>
+    </div>
+    @slot('footer')
+      <div class="flex justify-end space-x-3">
+        <button onclick="closeModal('banUserModal')" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-300">
+          <i class="fas fa-times mr-2"></i>Cancel
+        </button>
+        <form id="banUserForm" method="POST" action="" class="inline">
+          @csrf
+          <button type="submit" class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors duration-300">
+            <i class="fas fa-ban mr-2"></i>Ban User
+          </button>
+        </form>
+      </div>
+    @endslot
+  </x-modal>
+
+  <x-modal id="unbanUserModal" title="Unban User" icon="fas fa-unlock" color="green">
+    <div class="text-center">
+      <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <i class="fas fa-unlock text-green-600 text-2xl"></i>
+      </div>
+      <h4 class="text-xl font-semibold text-gray-800 mb-2">Confirm Unban</h4>
+      <p class="text-gray-600 mb-4">Are you sure you want to unban this user? The user will be able to log in and access the application again.</p>
+    </div>
+    @slot('footer')
+      <div class="flex justify-end space-x-3">
+        <button onclick="closeModal('unbanUserModal')" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-300">
+          <i class="fas fa-times mr-2"></i>Cancel
+        </button>
+        <form id="unbanUserForm" method="POST" action="" class="inline">
+          @csrf
+          <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-300">
+            <i class="fas fa-unlock mr-2"></i>Unban User
+          </button>
+        </form>
+      </div>
+    @endslot
+  </x-modal>
 @endpush
 
 @push('scripts')
@@ -311,14 +380,17 @@
         <span class="${user.is_admin ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'} text-sm font-medium px-3 py-1 rounded-full">
           <i class="fas ${user.is_admin ? 'fa-user-shield' : 'fa-user'} mr-1"></i>${user.is_admin ? 'Admin' : 'User'}
         </span>
-        <span class="bg-green-100 text-green-800 text-sm font-medium px-3 py-1 rounded-full">
-          <i class="fas fa-circle text-xs mr-1"></i>Active
-        </span>`;
+        ${user.is_banned ? 
+          '<span class="bg-red-100 text-red-800 text-sm font-medium px-3 py-1 rounded-full"><i class="fas fa-ban text-xs mr-1"></i>Banned</span>' :
+          '<span class="bg-green-100 text-green-800 text-sm font-medium px-3 py-1 rounded-full"><i class="fas fa-circle text-xs mr-1"></i>Active</span>'
+        }`;
       document.getElementById('viewUserInfo').innerHTML = `
         <h4 class="font-semibold text-gray-800 mb-3"><i class="fas fa-info-circle mr-2 text-purple-600"></i>Basic Information</h4>
         <div class="space-y-2">
           <div class="flex justify-between"><span class="text-gray-600">Member Since:</span><span class="font-medium">${user.created_at}</span></div>
           <div class="flex justify-between"><span class="text-gray-600">Email Verified:</span><span class="${user.email_verified_at ? 'text-green-600' : 'text-yellow-600'} font-medium"><i class="fas ${user.email_verified_at ? 'fa-check-circle' : 'fa-times-circle'} mr-1"></i>${user.email_verified_at ? 'Yes' : 'No'}</span></div>
+          <div class="flex justify-between"><span class="text-gray-600">Account Status:</span><span class="${user.is_banned ? 'text-red-600' : 'text-green-600'} font-medium"><i class="fas ${user.is_banned ? 'fa-ban' : 'fa-check-circle'} mr-1"></i>${user.is_banned ? 'Banned' : 'Active'}</span></div>
+          ${user.banned_at ? `<div class="flex justify-between"><span class="text-gray-600">Banned Since:</span><span class="font-medium">${user.banned_at}</span></div>` : ''}
         </div>`;
       document.getElementById('viewUserStats').innerHTML = `
         <h4 class="font-semibold text-gray-800 mb-3"><i class="fas fa-chart-bar mr-2 text-purple-600"></i>Account Details</h4>
@@ -364,6 +436,90 @@
       form.action = `/admin/users/${id}`;
       openModal('deleteUserModal');
     }
+
+    window.openUserBan = function(id) {
+      console.log('openUserBan called with id:', id);
+      currentUserId = id;
+      
+      // Check if modal exists
+      const modal = document.getElementById('banUserModal');
+      if (!modal) {
+        console.error('Ban modal not found in DOM');
+        if (typeof showToast === 'function') {
+          showToast('error', 'Ban modal not found. Please refresh the page.');
+        }
+        return;
+      }
+      
+      const form = document.getElementById('banUserForm');
+      if (!form) {
+        console.error('Ban form not found');
+        if (typeof showToast === 'function') {
+          showToast('error', 'Unable to open ban modal. Please refresh the page.');
+        }
+        return;
+      }
+      
+      form.action = `/admin/users/${id}/ban`;
+      console.log('Opening ban modal, form action:', form.action);
+      
+      // Try to open modal
+      if (typeof openModal === 'function') {
+        openModal('banUserModal');
+        // Verify modal is visible
+        setTimeout(() => {
+          if (modal.classList.contains('hidden')) {
+            console.error('Modal still hidden after openModal call');
+            modal.classList.remove('hidden');
+          }
+        }, 100);
+      } else {
+        console.error('openModal function not found, trying direct approach');
+        modal.classList.remove('hidden');
+      }
+    };
+
+    window.openUserUnban = function(id) {
+      console.log('openUserUnban called with id:', id);
+      currentUserId = id;
+      
+      // Check if modal exists
+      const modal = document.getElementById('unbanUserModal');
+      if (!modal) {
+        console.error('Unban modal not found in DOM');
+        if (typeof showToast === 'function') {
+          showToast('error', 'Unban modal not found. Please refresh the page.');
+        }
+        return;
+      }
+      
+      const form = document.getElementById('unbanUserForm');
+      if (!form) {
+        console.error('Unban form not found');
+        if (typeof showToast === 'function') {
+          showToast('error', 'Unable to open unban modal. Please refresh the page.');
+        }
+        return;
+      }
+      
+      form.action = `/admin/users/${id}/unban`;
+      console.log('Opening unban modal, form action:', form.action);
+      
+      // Try to open modal
+      if (typeof openModal === 'function') {
+        openModal('unbanUserModal');
+        // Verify modal is visible
+        setTimeout(() => {
+          if (modal.classList.contains('hidden')) {
+            console.error('Modal still hidden after openModal call');
+            modal.classList.remove('hidden');
+          }
+        }, 100);
+      } else {
+        console.error('openModal function not found, trying direct approach');
+        modal.classList.remove('hidden');
+      }
+    };
 
     // Real-time search (optional - can also use form submission)
     document.getElementById('userSearchInput')?.addEventListener('keypress', function(e) {

@@ -8,6 +8,8 @@ class Schedule extends Model
 {
     protected $fillable = [
         'area',
+        'schedule_type',
+        'specific_date',
         'days',
         'time_start',
         'time_end',
@@ -16,6 +18,7 @@ class Schedule extends Model
     ];
 
     protected $casts = [
+        'specific_date' => 'date',
         'time_start' => 'datetime:H:i',
         'time_end' => 'datetime:H:i',
     ];

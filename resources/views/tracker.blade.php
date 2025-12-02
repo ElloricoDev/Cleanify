@@ -120,29 +120,54 @@
           <span class="text-sm text-gray-500">{{ $trucks->count() }} total</span>
         </div>
         <div id="truckList" class="space-y-3 max-h-[65vh] overflow-y-auto pr-1">
-          @foreach($trucks as $truck)
-            <div class="border border-gray-100 rounded-xl p-3 truck-item" data-id="{{ $truck->id }}" data-status="{{ $truck->status }}" data-search="{{ strtolower($truck->code . ' ' . $truck->driver . ' ' . $truck->route) }}">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="font-semibold text-gray-800">{{ $truck->code }}</p>
-                  <p class="text-sm text-gray-500">{{ $truck->driver ?? 'No driver assigned' }}</p>
+          @forelse($trucks as $truck)
+            <div class="border border-gray-100 rounded-xl p-3 truck-item hover:border-green-300 transition-colors duration-200" data-id="{{ $truck->id }}" data-status="{{ $truck->status }}" data-search="{{ strtolower($truck->code . ' ' . $truck->driver . ' ' . $truck->route) }}">
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full {{ $truck->status === 'active' ? 'bg-green-500' : ($truck->status === 'on_break' ? 'bg-yellow-500' : ($truck->status === 'maintenance' ? 'bg-blue-500' : 'bg-gray-400')) }}"></div>
+                  <div>
+                    <p class="font-semibold text-gray-800">{{ $truck->code }}</p>
+                    <p class="text-sm text-gray-500">{{ $truck->driver ?? 'No driver assigned' }}</p>
+                  </div>
                 </div>
                 <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full {{ $truck->getStatusBadgeClass() }}">{{ $truck->formatted_status }}</span>
               </div>
-              <p class="text-sm text-gray-600 mt-2">
-                <i class="fas fa-route text-green-600 mr-1"></i>{{ $truck->route ?? 'No route' }}
-              </p>
-              <p class="text-xs text-gray-400 mt-1">Last updated: {{ $truck->last_updated ? $truck->last_updated->diffForHumans() : 'Never' }}</p>
+              <div class="flex items-center gap-4 text-sm text-gray-600 mt-2">
+                <p>
+                  <i class="fas fa-route text-green-600 mr-1"></i>{{ $truck->route ?? 'No route' }}
+                </p>
+                @if($truck->latitude && $truck->longitude)
+                  <p class="text-green-600">
+                    <i class="fas fa-map-marker-alt mr-1"></i>On map
+                  </p>
+                @else
+                  <p class="text-gray-400">
+                    <i class="fas fa-map-marker-alt mr-1"></i>No location
+                  </p>
+                @endif
+              </div>
+              <p class="text-xs text-gray-400 mt-2">Last updated: {{ $truck->last_updated ? $truck->last_updated->diffForHumans() : 'Never' }}</p>
               <div class="flex items-center gap-2 mt-3 text-sm">
-                <button class="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 hover:bg-gray-50 center-truck-btn" data-id="{{ $truck->id }}">
-                  <i class="fas fa-crosshairs text-green-600 mr-1"></i>Focus
-                </button>
-                <button class="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 hover:bg-gray-50 route-history-btn" data-id="{{ $truck->id }}">
-                  <i class="fas fa-map-marked-alt text-blue-600 mr-1"></i>Route
-                </button>
+                @if($truck->latitude && $truck->longitude)
+                  <button class="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 hover:bg-gray-50 center-truck-btn" data-id="{{ $truck->id }}">
+                    <i class="fas fa-crosshairs text-green-600 mr-1"></i>Focus
+                  </button>
+                  <button class="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 hover:bg-gray-50 route-history-btn" data-id="{{ $truck->id }}">
+                    <i class="fas fa-map-marked-alt text-blue-600 mr-1"></i>Route
+                  </button>
+                @else
+                  <button class="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-gray-400 cursor-not-allowed" disabled title="No location data available">
+                    <i class="fas fa-map-marker-alt mr-1"></i>No location
+                  </button>
+                @endif
               </div>
             </div>
-          @endforeach
+          @empty
+            <div class="text-center py-8 text-gray-500">
+              <i class="fas fa-truck text-4xl mb-3 block text-gray-300"></i>
+              <p>No trucks available</p>
+            </div>
+          @endforelse
         </div>
         </div>
       </div>
@@ -181,12 +206,23 @@
       attribution: '&copy; OpenStreetMap contributors',
     }).addTo(map);
 
-    const truckIcon = L.icon({
-      iconUrl: 'https://cdn-icons-png.flaticon.com/512/743/743131.png',
-      iconSize: [38, 38],
-      iconAnchor: [19, 38],
-      popupAnchor: [0, -34],
-    });
+    // Function to get truck icon based on status
+    const getTruckIcon = (status) => {
+      const statusColors = {
+        'active': 'green',
+        'on_break': 'yellow',
+        'offline': 'red',
+        'maintenance': 'blue',
+      };
+      const color = statusColors[status] || 'gray';
+      
+      return L.icon({
+        iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-${color}.png`,
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [0, -41],
+      });
+    };
 
     const markers = {};
     const clusterGroup = L.markerClusterGroup({ showCoverageOnHover: false });
@@ -214,26 +250,47 @@
     let countdown = 30;
     let countdownInterval = null;
 
-    const makePopup = (truck) => `
-      <div class="text-sm">
-        <p class="font-semibold text-gray-800">${truck.code}</p>
-        <p class="text-gray-600">Driver: ${truck.driver ?? 'N/A'}</p>
-        <p class="text-gray-600">Route: ${truck.route ?? 'N/A'}</p>
-        <p class="text-gray-500 text-xs mt-1">Updated: ${truck.last_updated_human ?? 'Never'}</p>
-      </div>
-    `;
+    const makePopup = (truck) => {
+      const statusColors = {
+        'active': 'bg-green-100 text-green-800',
+        'on_break': 'bg-yellow-100 text-yellow-800',
+        'offline': 'bg-red-100 text-red-800',
+        'maintenance': 'bg-blue-100 text-blue-800',
+      };
+      const statusClass = statusColors[truck.status] || 'bg-gray-100 text-gray-800';
+      
+      return `
+        <div class="text-sm" style="min-width: 180px;">
+          <div class="flex items-center justify-between mb-2">
+            <p class="font-semibold text-gray-800">${truck.code}</p>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${statusClass}">${truck.formatted_status || truck.status || 'Unknown'}</span>
+          </div>
+          <p class="text-gray-600 text-xs"><strong>Driver:</strong> ${truck.driver ?? 'N/A'}</p>
+          <p class="text-gray-600 text-xs"><strong>Route:</strong> ${truck.route ?? 'N/A'}</p>
+          <p class="text-gray-500 text-xs mt-2 pt-2 border-t border-gray-200"><strong>Last updated:</strong> ${truck.last_updated_human ?? 'Never'}</p>
+        </div>
+      `;
+    };
 
     const upsertMarker = (truck) => {
       if (!truck.latitude || !truck.longitude) return;
+      
+      const icon = getTruckIcon(truck.status);
+      
       if (!markers[truck.id]) {
-        const marker = L.marker([truck.latitude, truck.longitude], { icon: truckIcon })
+        const marker = L.marker([truck.latitude, truck.longitude], { icon: icon })
           .bindPopup(makePopup(truck));
         marker.on('click', () => showTruckDetail(truck));
         markers[truck.id] = marker;
         clusterGroup.addLayer(marker);
       } else {
+        // Update marker position and icon if status changed
         markers[truck.id].setLatLng([truck.latitude, truck.longitude]);
-        markers[truck.id].setPopupContent(makePopup(truck));
+        markers[truck.id].setIcon(icon);
+        const popupContent = makePopup(truck);
+        markers[truck.id].setPopupContent(popupContent);
+        // Update truck cache for detail panel
+        truckCache[truck.id] = truck;
       }
     };
 
@@ -251,11 +308,46 @@
       data.forEach(truck => {
         const el = document.querySelector(`.truck-item[data-id="${truck.id}"]`);
         if (!el) return;
+        
+        // Update status
         el.setAttribute('data-status', truck.status);
-        el.querySelector('.text-xs.text-gray-400').textContent = `Last updated: ${truck.last_updated_human ?? 'Never'}`;
-        const statusBadge = el.querySelector('span.text-xs');
-        statusBadge.textContent = truck.formatted_status;
-        statusBadge.className = `text-xs font-semibold px-2.5 py-0.5 rounded-full ${truck.status_badge}`;
+        
+        // Update status badge
+        const statusBadge = el.querySelector('span.text-xs.font-semibold.px-2\\.5');
+        if (statusBadge) {
+          statusBadge.textContent = truck.formatted_status;
+          statusBadge.className = `text-xs font-semibold px-2.5 py-0.5 rounded-full ${truck.status_badge}`;
+        }
+        
+        // Update status indicator dot
+        const statusDot = el.querySelector('.w-3.h-3.rounded-full');
+        if (statusDot) {
+          const statusColors = {
+            'active': 'bg-green-500',
+            'on_break': 'bg-yellow-500',
+            'maintenance': 'bg-blue-500',
+            'offline': 'bg-red-500',
+          };
+          statusDot.className = `w-3 h-3 rounded-full ${statusColors[truck.status] || 'bg-gray-400'}`;
+        }
+        
+        // Update last updated text
+        const lastUpdatedEl = el.querySelector('.text-xs.text-gray-400');
+        if (lastUpdatedEl) {
+          lastUpdatedEl.textContent = `Last updated: ${truck.last_updated_human ?? 'Never'}`;
+        }
+        
+        // Update location indicator
+        const locationIndicator = el.querySelector('.fa-map-marker-alt')?.parentElement;
+        if (locationIndicator) {
+          if (truck.latitude && truck.longitude) {
+            locationIndicator.className = 'text-green-600';
+            locationIndicator.innerHTML = '<i class="fas fa-map-marker-alt mr-1"></i>On map';
+          } else {
+            locationIndicator.className = 'text-gray-400';
+            locationIndicator.innerHTML = '<i class="fas fa-map-marker-alt mr-1"></i>No location';
+          }
+        }
       });
     };
 
@@ -496,3 +588,4 @@
     filterList();
   </script>
 @endpush
+

@@ -110,19 +110,23 @@
       @method('PATCH')
       <div class="mb-4">
         <label class="block text-gray-700 mb-2">Full Name</label>
-        <input type="text" name="name" value="{{ $user->name }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" required>
+        <input type="text" name="name" id="editProfileName" value="{{ $user->name }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" required>
+        <div id="error-name" class="text-red-500 text-sm mt-1 hidden"></div>
       </div>
       <div class="mb-4">
         <label class="block text-gray-700 mb-2">Email</label>
-        <input type="email" name="email" value="{{ $user->email }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" required>
+        <input type="email" name="email" id="editProfileEmail" value="{{ $user->email }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" required>
+        <div id="error-email" class="text-red-500 text-sm mt-1 hidden"></div>
       </div>
       <div class="mb-4">
         <label class="block text-gray-700 mb-2">Phone</label>
-        <input type="text" name="phone" value="{{ $user->phone ?? '' }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="+63 912 345 6789">
+        <input type="text" name="phone" id="editProfilePhone" value="{{ $user->phone ?? '' }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="+63 912 345 6789">
+        <div id="error-phone" class="text-red-500 text-sm mt-1 hidden"></div>
       </div>
       <div class="mb-4">
         <label class="block text-gray-700 mb-2">Address</label>
-        <input type="text" name="address" value="{{ $user->address ?? '' }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="Barangay, City">
+        <input type="text" name="address" id="editProfileAddress" value="{{ $user->address ?? '' }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="Barangay, City">
+        <div id="error-address" class="text-red-500 text-sm mt-1 hidden"></div>
       </div>
     </form>
     
@@ -201,6 +205,9 @@
     currentReportId = reportId;
     const report = @json($userReports->keyBy('id'));
     
+    // Close dropdown
+    document.getElementById(`postDropdown${reportId}`)?.classList.add('hidden');
+    
     if (report[reportId]) {
       document.getElementById('editPostLocation').value = report[reportId].location;
       document.getElementById('editPostDescription').value = report[reportId].description;
@@ -217,27 +224,48 @@
       method: 'PATCH',
       headers: {
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+        'Accept': 'application/json',
       },
       body: formData,
     })
-    .then(response => response.json())
+    .then(async response => {
+      const data = await response.json();
+      if (!response.ok) {
+        throw { response, error: data };
+      }
+      return data;
+    })
     .then(data => {
       if (data.success) {
         showToast('success', 'Post updated successfully');
-        location.reload();
+        closeModal('editPostModal');
+        setTimeout(() => location.reload(), 1000);
       } else {
         showToast('error', data.message || 'Failed to update post');
       }
     })
     .catch(error => {
       console.error('Error:', error);
-      showToast('error', 'An error occurred');
+      let errorMessage = 'Failed to update post. Please try again.';
+      
+      if (error.error) {
+        if (error.error.message) {
+          errorMessage = error.error.message;
+        } else if (error.error.errors) {
+          const firstError = Object.values(error.error.errors)[0];
+          errorMessage = Array.isArray(firstError) ? firstError[0] : firstError;
+        }
+      }
+      
+      showToast('error', errorMessage);
     });
   }
 
   // Delete Post Modal
   function openDeletePostModal(reportId) {
     currentDeleteReportId = reportId;
+    // Close dropdown
+    document.getElementById(`postDropdown${reportId}`)?.classList.add('hidden');
     openModal('deletePostModal');
   }
 
@@ -248,28 +276,49 @@
       method: 'DELETE',
       headers: {
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-        'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
     })
-    .then(response => response.json())
+    .then(async response => {
+      const data = await response.json();
+      if (!response.ok) {
+        throw { response, error: data };
+      }
+      return data;
+    })
     .then(data => {
       if (data.success) {
         showToast('success', 'Post deleted successfully');
-        document.getElementById(`report-${currentDeleteReportId}`).remove();
+        const reportElement = document.getElementById(`report-${currentDeleteReportId}`);
+        if (reportElement) {
+          reportElement.style.transition = 'opacity 0.3s, transform 0.3s';
+          reportElement.style.opacity = '0';
+          reportElement.style.transform = 'translateX(-20px)';
+          setTimeout(() => {
+            reportElement.remove();
+            // Reload if no posts left
+            if (document.querySelectorAll('[id^="report-"]').length === 0) {
+              setTimeout(() => location.reload(), 500);
+            }
+          }, 300);
+        }
         closeModal('deletePostModal');
         currentDeleteReportId = null;
-        
-        // Reload if no posts left
-        if (document.querySelectorAll('[id^="report-"]').length === 0) {
-          setTimeout(() => location.reload(), 1000);
-        }
       } else {
         showToast('error', data.message || 'Failed to delete post');
       }
     })
     .catch(error => {
       console.error('Error:', error);
-      showToast('error', 'An error occurred');
+      let errorMessage = 'Failed to delete post. Please try again.';
+      
+      if (error.error) {
+        if (error.error.message) {
+          errorMessage = error.error.message;
+        }
+      }
+      
+      showToast('error', errorMessage);
     });
   }
 
@@ -277,10 +326,23 @@
   function openCommentModal(reportId) {
     currentReportId = reportId;
     const commentsContainer = document.getElementById('commentsContainer');
+    const commentInput = document.getElementById('commentInput');
     commentsContainer.innerHTML = '<p class="text-center text-gray-500">Loading comments...</p>';
+    if (commentInput) {
+      commentInput.value = '';
+    }
 
-    fetch(`/reports/${reportId}/comments`)
-      .then(response => response.json())
+    fetch(`/reports/${reportId}/comments`, {
+      headers: {
+        'Accept': 'application/json',
+      },
+    })
+      .then(async response => {
+        if (!response.ok) {
+          throw new Error('Failed to load comments');
+        }
+        return response.json();
+      })
       .then(data => {
         commentsContainer.innerHTML = '';
         if (data.comments && data.comments.length > 0) {
@@ -306,11 +368,30 @@
         }
       })
       .catch(error => {
-        commentsContainer.innerHTML = '<p class="text-center text-red-500">Failed to load comments</p>';
+        console.error('Error loading comments:', error);
+        commentsContainer.innerHTML = '<p class="text-center text-red-500">Failed to load comments. Please try again.</p>';
       });
 
     openModal('commentModal');
+    
+    // Focus comment input
+    if (commentInput) {
+      setTimeout(() => commentInput.focus(), 100);
+    }
   }
+  
+  // Handle Enter key in comment input
+  document.addEventListener('DOMContentLoaded', function() {
+    const commentInput = document.getElementById('commentInput');
+    if (commentInput) {
+      commentInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          submitComment();
+        }
+      });
+    }
+  });
 
   function submitComment() {
     if (!currentReportId) return;
@@ -328,10 +409,17 @@
       headers: {
         'Content-Type': 'application/json',
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+        'Accept': 'application/json',
       },
       body: JSON.stringify({ comment }),
     })
-    .then(response => response.json())
+    .then(async response => {
+      const data = await response.json();
+      if (!response.ok) {
+        throw { response, error: data };
+      }
+      return data;
+    })
     .then(data => {
       if (data.comment) {
         commentInput.value = '';
@@ -355,13 +443,33 @@
         `;
         commentsContainer.appendChild(commentDiv);
         showToast('success', 'Comment added');
+        
+        // Update comment count in the post
+        const commentButton = document.querySelector(`[onclick="openCommentModal(${currentReportId})"]`);
+        if (commentButton) {
+          const countSpan = commentButton.querySelector('span');
+          if (countSpan && data.comments_count !== undefined) {
+            countSpan.textContent = `${data.comments_count} comments`;
+          }
+        }
       } else {
         showToast('error', 'Failed to add comment');
       }
     })
     .catch(error => {
       console.error('Error:', error);
-      showToast('error', 'An error occurred');
+      let errorMessage = 'Failed to add comment. Please try again.';
+      
+      if (error.error) {
+        if (error.error.message) {
+          errorMessage = error.error.message;
+        } else if (error.error.errors) {
+          const firstError = Object.values(error.error.errors)[0];
+          errorMessage = Array.isArray(firstError) ? firstError[0] : firstError;
+        }
+      }
+      
+      showToast('error', errorMessage);
     });
   }
 
@@ -378,53 +486,234 @@
           headers: {
             'Content-Type': 'application/json',
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'Accept': 'application/json',
           },
         })
-        .then(response => response.json())
+        .then(async response => {
+          const data = await response.json();
+          if (!response.ok) {
+            throw { response, error: data };
+          }
+          return data;
+        })
         .then(data => {
-          likeLabel.textContent = data.liked ? 'Liked' : 'Like';
-          likeCount.textContent = `(${data.likes_count})`;
+          if (likeLabel) {
+            likeLabel.textContent = data.liked ? 'Liked' : 'Like';
+          }
+          if (likeCount) {
+            likeCount.textContent = `(${data.likes_count})`;
+          }
           this.classList.toggle('text-red-500', data.liked);
           this.classList.toggle('text-gray-600', !data.liked);
         })
         .catch(error => {
           console.error('Error:', error);
-          showToast('error', 'Failed to like post');
+          showToast('error', 'Failed to like post. Please try again.');
         });
       });
     });
   });
 
-  // Handle profile form submission
-  function submitProfileForm() {
+  // Handle profile form submission - make it globally accessible
+  window.submitProfileForm = function() {
     const form = document.getElementById('editProfileForm');
-    const formData = new FormData(form);
+    if (!form) {
+      showToast('error', 'Form not found');
+      return;
+    }
+    
+    // Get input values explicitly to ensure they're captured
+    const nameInput = document.getElementById('editProfileName');
+    const emailInput = document.getElementById('editProfileEmail');
+    const phoneInput = document.getElementById('editProfilePhone');
+    const addressInput = document.getElementById('editProfileAddress');
+    
+    // Validate required fields
+    if (!nameInput || !nameInput.value || nameInput.value.trim() === '') {
+      showToast('error', 'Name field is required');
+      nameInput?.focus();
+      return;
+    }
+    
+    if (!emailInput || !emailInput.value || emailInput.value.trim() === '') {
+      showToast('error', 'Email field is required');
+      emailInput?.focus();
+      return;
+    }
+    
+    // Get CSRF token
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || 
+                     form.querySelector('input[name="_token"]')?.value;
+    
+    // Prepare JSON data
+    const jsonData = {
+      name: nameInput.value.trim(),
+      email: emailInput.value.trim(),
+      phone: phoneInput && phoneInput.value ? phoneInput.value.trim() : null,
+      address: addressInput && addressInput.value ? addressInput.value.trim() : null,
+    };
+    
+    // Debug: Log form data (remove in production)
+    console.log('Submitting profile form with data:', jsonData);
 
     fetch(form.action, {
       method: 'PATCH',
       headers: {
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': csrfToken || '',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
       },
-      body: formData,
+      body: JSON.stringify(jsonData),
+      redirect: 'manual', // Prevent automatic redirect following
     })
-    .then(response => response.json())
+    .then(async response => {
+      // Handle redirects - should not happen with AJAX
+      if (response.type === 'opaqueredirect' || response.status === 0) {
+        throw new Error('Unexpected redirect detected. Please check your request headers.');
+      }
+      
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Non-JSON response:', text);
+        throw new Error('Server returned non-JSON response. Please try again.');
+      }
+      
+      const data = await response.json();
+      if (!response.ok) {
+        // Log the full error for debugging
+        console.error('Server error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          data: data,
+          errors: data.errors,
+        });
+        throw { response, error: data };
+      }
+      return data;
+    })
     .then(data => {
       if (data.success) {
+        // Clear any error messages
+        document.querySelectorAll('[id^="error-"]').forEach(el => {
+          el.classList.add('hidden');
+          el.textContent = '';
+        });
+        
+        // Remove error styling from inputs
+        document.querySelectorAll('#editProfileForm input').forEach(input => {
+          input.classList.remove('border-red-500');
+          input.classList.add('border-gray-300');
+        });
+        
         showToast('success', 'Profile updated successfully');
+        closeModal('editProfileModal');
         setTimeout(() => location.reload(), 1000);
       } else {
         showToast('error', data.message || 'Failed to update profile');
       }
     })
     .catch(error => {
-      console.error('Error:', error);
-      showToast('error', 'An error occurred');
+      console.error('Full error object:', error);
+      console.error('Error.error:', error.error);
+      console.error('Error.error.errors:', error.error?.errors);
+      
+      // Clear previous field errors
+      document.querySelectorAll('[id^="error-"]').forEach(el => {
+        el.classList.add('hidden');
+        el.textContent = '';
+      });
+      
+      // Remove error styling from inputs
+      document.querySelectorAll('#editProfileForm input').forEach(input => {
+        input.classList.remove('border-red-500');
+        input.classList.add('border-gray-300');
+      });
+      
+      let errorMessage = 'Failed to update profile. Please try again.';
+      let hasFieldErrors = false;
+      
+      // Handle Laravel validation errors
+      if (error.error) {
+        // Check for validation errors object
+        if (error.error.errors) {
+          const errors = error.error.errors;
+          console.log('Processing validation errors:', errors);
+          
+          // Display field-specific errors
+          Object.keys(errors).forEach(field => {
+            const errorElement = document.getElementById(`error-${field}`);
+            // Handle field name mapping (e.g., 'name' -> 'editProfileName')
+            let inputElement = null;
+            if (field === 'name') {
+              inputElement = document.getElementById('editProfileName');
+            } else if (field === 'email') {
+              inputElement = document.getElementById('editProfileEmail');
+            } else if (field === 'phone') {
+              inputElement = document.getElementById('editProfilePhone');
+            } else if (field === 'address') {
+              inputElement = document.getElementById('editProfileAddress');
+            }
+            
+            if (errorElement && errors[field]) {
+              const errorText = Array.isArray(errors[field]) ? errors[field][0] : errors[field];
+              errorElement.textContent = errorText;
+              errorElement.classList.remove('hidden');
+              hasFieldErrors = true;
+              console.log(`Displaying error for ${field}:`, errorText);
+            }
+            
+            if (inputElement) {
+              inputElement.classList.remove('border-gray-300');
+              inputElement.classList.add('border-red-500');
+            }
+          });
+          
+          // Get first error for toast
+          const firstErrorKey = Object.keys(errors)[0];
+          const firstError = errors[firstErrorKey];
+          errorMessage = Array.isArray(firstError) ? firstError[0] : firstError;
+        } 
+        // Check for message field
+        else if (error.error.message && error.error.message !== 'The given data was invalid.') {
+          errorMessage = error.error.message;
+        }
+      } 
+      // Handle generic error messages
+      else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      // Show toast with error message
+      showToast('error', errorMessage);
     });
-  }
+  };
 
   document.getElementById('editProfileForm')?.addEventListener('submit', function(e) {
     e.preventDefault();
-    submitProfileForm();
+    if (typeof window.submitProfileForm === 'function') {
+      window.submitProfileForm();
+    } else {
+      console.error('submitProfileForm function not found');
+      showToast('error', 'Form submission error. Please refresh the page.');
+    }
+  });
+
+  // Clear errors when user starts typing
+  ['name', 'email', 'phone', 'address'].forEach(field => {
+    const input = document.getElementById(`editProfile${field.charAt(0).toUpperCase() + field.slice(1)}`);
+    const errorElement = document.getElementById(`error-${field}`);
+    
+    if (input && errorElement) {
+      input.addEventListener('input', function() {
+        errorElement.classList.add('hidden');
+        errorElement.textContent = '';
+        input.classList.remove('border-red-500');
+        input.classList.add('border-gray-300');
+      });
+    }
   });
 </script>
 @endpush

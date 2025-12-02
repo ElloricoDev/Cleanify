@@ -199,7 +199,7 @@ class ReportsController extends Controller
 
     protected function notifyReportOwner(Report $report, string $type): void
     {
-        if (!$report->user || !$report->user->email_notifications) {
+        if (!$report->user) {
             return;
         }
 
@@ -216,17 +216,23 @@ class ReportsController extends Controller
 
     protected function notifyFollowers(Report $report, string $type): void
     {
+        // Get all followers (notification class will handle email preferences)
         $followers = $report->followers()
             ->where('user_id', '!=', $report->user_id)
-            ->where('email_notifications', true)
             ->get();
 
         foreach ($followers as $follower) {
             try {
-                if ($type === 'resolved') {
-                    $follower->notify(new \App\Notifications\ReportResolvedNotification($report, true));
-                } else {
-                    $follower->notify(new \App\Notifications\ReportRejectedNotification($report, true));
+                // Check if user has reports notifications enabled
+                $preferences = $follower->notification_preferences ?? [];
+                $reportsEnabled = $preferences['reports'] ?? true;
+
+                if ($reportsEnabled) {
+                    if ($type === 'resolved') {
+                        $follower->notify(new \App\Notifications\ReportResolvedNotification($report, true));
+                    } else {
+                        $follower->notify(new \App\Notifications\ReportRejectedNotification($report, true));
+                    }
                 }
             } catch (\Exception $e) {
                 \Log::error('Failed to notify follower: ' . $e->getMessage());

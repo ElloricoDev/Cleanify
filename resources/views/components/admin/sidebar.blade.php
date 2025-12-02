@@ -19,6 +19,10 @@
       <i class="fas fa-flag mr-3 text-lg"></i>
       <span>Reports</span>
     </a>
+    <a href="{{ route('admin.user-reports') }}" class="flex items-center px-4 py-3 rounded-lg text-white transition-colors duration-300 {{ $active === 'user-reports' ? 'bg-green-700' : 'hover:bg-green-700' }}">
+      <i class="fas fa-user-shield mr-3 text-lg"></i>
+      <span>User Reports</span>
+    </a>
     <a href="{{ route('admin.schedule') }}" class="flex items-center px-4 py-3 rounded-lg text-white transition-colors duration-300 {{ $active === 'schedule' ? 'bg-green-700' : 'hover:bg-green-700' }}">
       <i class="fas fa-calendar-alt mr-3 text-lg"></i>
       <span>Schedule</span>

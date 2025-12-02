@@ -63,7 +63,30 @@
             $message = $data['message'] ?? ($notification->type ?? '');
             $icon = $data['icon'] ?? 'fa-bell';
             $color = $data['color'] ?? 'bg-green-600';
-            $actionUrl = $data['url'] ?? null;
+            $category = $data['category'] ?? null;
+            
+            // Generate action URL based on category (this ensures correct routes)
+            $actionUrl = null;
+            if ($category === 'schedule') {
+              $actionUrl = route('garbage-schedule');
+            } elseif ($category === 'reports') {
+              $actionUrl = route('community-reports');
+            } elseif ($category === 'tracker') {
+              $actionUrl = route('tracker');
+            } elseif (isset($data['url'])) {
+              // Fallback to stored URL, but normalize it
+              $storedUrl = $data['url'];
+              if (substr($storedUrl, 0, 1) === '/') {
+                // Relative URL - use as is
+                $actionUrl = $storedUrl;
+              } elseif (substr($storedUrl, 0, 7) === 'http://' || substr($storedUrl, 0, 8) === 'https://') {
+                // Full URL - extract path
+                $parsed = parse_url($storedUrl);
+                $actionUrl = isset($parsed['path']) ? $parsed['path'] : $storedUrl;
+              } else {
+                $actionUrl = $storedUrl;
+              }
+            }
           @endphp
           <div class="flex items-start p-4 border border-gray-100 rounded-xl {{ $isUnread ? 'bg-green-50' : 'bg-white' }}">
             <div class="w-12 h-12 {{ $color }} text-white rounded-full flex items-center justify-center mr-4 flex-shrink-0">
@@ -148,3 +171,222 @@
     </div>
   </div>
 @endsection
+
+@push('scripts')
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      
+      // Handle mark all as read
+      const markAllReadForm = document.querySelector('form[action*="mark-all-read"]');
+      if (markAllReadForm) {
+        markAllReadForm.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const formData = new FormData(this);
+          
+          fetch(this.action, {
+            method: 'POST',
+            headers: {
+              'X-CSRF-TOKEN': csrfToken,
+            },
+            body: formData,
+          })
+          .then(response => {
+            if (response.redirected) {
+              window.location.href = response.url;
+              return;
+            }
+            return response.json();
+          })
+          .then(data => {
+            if (data && data.success) {
+              if (typeof showToast === 'function') {
+                showToast('success', 'All notifications marked as read');
+              }
+              setTimeout(() => location.reload(), 500);
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            if (typeof showToast === 'function') {
+              showToast('error', 'Failed to mark all as read. Please try again.');
+            } else {
+              this.submit(); // Fallback to normal form submission
+            }
+          });
+        });
+      }
+      
+      // Handle individual notification mark as read
+      document.querySelectorAll('form[action*="mark-read"]').forEach(form => {
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const formData = new FormData(this);
+          const notificationCard = this.closest('.border');
+          
+          fetch(this.action, {
+            method: 'POST',
+            headers: {
+              'X-CSRF-TOKEN': csrfToken,
+            },
+            body: formData,
+          })
+          .then(response => {
+            if (response.redirected) {
+              window.location.href = response.url;
+              return;
+            }
+            return response.json();
+          })
+          .then(data => {
+            if (data && data.success) {
+              if (typeof showToast === 'function') {
+                showToast('success', 'Notification marked as read');
+              }
+              // Update UI
+              if (notificationCard) {
+                notificationCard.classList.remove('bg-green-50');
+                notificationCard.classList.add('bg-white');
+                const unreadBadge = notificationCard.querySelector('.bg-red-100');
+                if (unreadBadge) {
+                  unreadBadge.remove();
+                }
+                const markReadBtn = this.querySelector('button');
+                if (markReadBtn) {
+                  markReadBtn.innerHTML = '<i class="fas fa-check mr-1 text-green-600"></i>Read';
+                }
+              }
+              setTimeout(() => location.reload(), 500);
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            if (typeof showToast === 'function') {
+              showToast('error', 'Failed to mark as read. Please try again.');
+            } else {
+              this.submit(); // Fallback to normal form submission
+            }
+          });
+        });
+      });
+      
+      // Handle notification delete/dismiss
+      document.querySelectorAll('form[action*="notifications"][method="DELETE"]').forEach(form => {
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const formData = new FormData(this);
+          const notificationCard = this.closest('.border');
+          
+          if (!confirm('Are you sure you want to dismiss this notification?')) {
+            return;
+          }
+          
+          fetch(this.action, {
+            method: 'DELETE',
+            headers: {
+              'X-CSRF-TOKEN': csrfToken,
+            },
+            body: formData,
+          })
+          .then(response => {
+            if (response.redirected) {
+              window.location.href = response.url;
+              return;
+            }
+            return response.json();
+          })
+          .then(data => {
+            if (data && data.success) {
+              if (typeof showToast === 'function') {
+                showToast('success', 'Notification dismissed');
+              }
+              // Remove notification from UI with animation
+              if (notificationCard) {
+                notificationCard.style.transition = 'opacity 0.3s, transform 0.3s';
+                notificationCard.style.opacity = '0';
+                notificationCard.style.transform = 'translateX(-20px)';
+                setTimeout(() => {
+                  notificationCard.remove();
+                  // Check if no notifications left
+                  const notificationsContainer = document.querySelector('.space-y-4');
+                  if (notificationsContainer && notificationsContainer.children.length === 0) {
+                    location.reload();
+                  }
+                }, 300);
+              } else {
+                setTimeout(() => location.reload(), 500);
+              }
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            if (typeof showToast === 'function') {
+              showToast('error', 'Failed to dismiss notification. Please try again.');
+            } else {
+              this.submit(); // Fallback to normal form submission
+            }
+          });
+        });
+      });
+      
+      // Handle preferences form
+      const preferencesForm = document.querySelector('form[action*="preferences"]');
+      if (preferencesForm) {
+        preferencesForm.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const formData = new FormData(this);
+          
+          fetch(this.action, {
+            method: 'POST',
+            headers: {
+              'X-CSRF-TOKEN': csrfToken,
+            },
+            body: formData,
+          })
+          .then(response => {
+            if (response.redirected) {
+              window.location.href = response.url;
+              return;
+            }
+            return response.json();
+          })
+          .then(data => {
+            if (data && data.success) {
+              if (typeof showToast === 'function') {
+                showToast('success', 'Notification preferences updated');
+              }
+              setTimeout(() => location.reload(), 500);
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            if (typeof showToast === 'function') {
+              showToast('error', 'Failed to update preferences. Please try again.');
+            } else {
+              this.submit(); // Fallback to normal form submission
+            }
+          });
+        });
+      }
+      
+      // Handle filter form submission
+      const filterForm = document.querySelector('form[action*="notifications"]:not([action*="mark"]):not([action*="preferences"]):not([action*="destroy"])');
+      if (filterForm) {
+        const categorySelect = filterForm.querySelector('select[name="category"]');
+        const includeMutedCheckbox = filterForm.querySelector('input[name="include_muted"]');
+        
+        if (categorySelect) {
+          categorySelect.addEventListener('change', function() {
+            filterForm.submit();
+          });
+        }
+        
+        if (includeMutedCheckbox) {
+          includeMutedCheckbox.addEventListener('change', function() {
+            filterForm.submit();
+          });
+        }
+      }
+    });
+  </script>
+@endpush

@@ -29,11 +29,17 @@ class ReportResolvedNotification extends Notification
      */
     public function via(object $notifiable): array
     {
-        // Only send if user has email notifications enabled
-        if ($notifiable->email_notifications ?? true) {
-            return ['mail'];
+        $channels = ['database'];
+        
+        // Check if user has email notifications enabled and reports category enabled
+        $preferences = $notifiable->notification_preferences ?? [];
+        $reportsEnabled = $preferences['reports'] ?? true;
+        
+        if (($notifiable->email_notifications ?? true) && $reportsEnabled) {
+            $channels[] = 'mail';
         }
-        return [];
+        
+        return $channels;
     }
 
     /**
@@ -63,8 +69,12 @@ class ReportResolvedNotification extends Notification
                                     ->line($this->report->admin_notes);
                     })
                     ->line('Resolved by: ' . $resolverName)
-                    ->line('Resolved on: ' . $this->report->resolved_at->format('F d, Y \a\t h:i A'))
-                    ->action('View Report', url('/community-reports'))
+                    ->when($this->report->resolved_at, function ($mail) {
+                        return $mail->line('Resolved on: ' . $this->report->resolved_at->format('F d, Y \a\t h:i A'));
+                    }, function ($mail) {
+                        return $mail->line('Resolved on: ' . now()->format('F d, Y \a\t h:i A'));
+                    })
+                    ->action('View Report', route('community-reports'))
                     ->line('Thank you for helping keep our community clean!');
     }
 
@@ -85,7 +95,7 @@ class ReportResolvedNotification extends Notification
             'message' => 'Location: ' . $this->report->location,
             'icon' => 'fa-check-circle',
             'color' => 'bg-green-600',
-            'url' => url('/community-reports'),
+            'url' => '/community-reports',
         ];
     }
 }

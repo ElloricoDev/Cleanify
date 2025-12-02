@@ -35,7 +35,7 @@ class UserManagementController extends Controller
         $totalUsers = User::count();
         $totalAdmins = User::where('is_admin', true)->count();
         $totalRegular = User::where('is_admin', false)->count();
-        $bannedUsers = 0; // Placeholder - add status field if needed
+        $bannedUsers = User::whereNotNull('banned_at')->count();
 
         return view('admin.users', [
             'activePage' => 'users',
@@ -102,5 +102,47 @@ class UserManagementController extends Controller
 
         return redirect()->route('admin.users')
             ->with('success', 'User deleted successfully!');
+    }
+
+    /**
+     * Ban a user.
+     */
+    public function ban(string $id): RedirectResponse
+    {
+        $user = User::findOrFail($id);
+
+        // Prevent admin from banning themselves
+        if (auth()->id() == $user->id) {
+            return back()->withErrors(['ban' => 'You cannot ban your own account.']);
+        }
+
+        // Prevent banning other admins
+        if ($user->isAdmin()) {
+            return back()->withErrors(['ban' => 'Cannot ban administrator accounts.']);
+        }
+
+        $user->update(['banned_at' => now()]);
+
+        // Log activity
+        ActivityLogService::logUserBanned($user);
+
+        return redirect()->route('admin.users')
+            ->with('success', 'User has been banned successfully!');
+    }
+
+    /**
+     * Unban a user.
+     */
+    public function unban(string $id): RedirectResponse
+    {
+        $user = User::findOrFail($id);
+
+        $user->update(['banned_at' => null]);
+
+        // Log activity
+        ActivityLogService::logUserUnbanned($user);
+
+        return redirect()->route('admin.users')
+            ->with('success', 'User has been unbanned successfully!');
     }
 }

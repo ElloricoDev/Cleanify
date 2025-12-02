@@ -35,7 +35,7 @@ class NotificationController extends Controller
         }
 
         if ($categoryFilter !== 'all' && isset($this->categories[$categoryFilter])) {
-            $notificationsQuery->where('data->category', $categoryFilter);
+            $notificationsQuery->whereJsonContains('data->category', $categoryFilter);
         }
 
         if (!$includeMuted) {
@@ -45,7 +45,9 @@ class NotificationController extends Controller
                 ->all();
 
             if (!empty($mutedCategories)) {
-                $notificationsQuery->whereNotIn('data->category', $mutedCategories);
+                foreach ($mutedCategories as $mutedCategory) {
+                    $notificationsQuery->whereJsonDoesntContain('data->category', $mutedCategory);
+                }
             }
         }
 

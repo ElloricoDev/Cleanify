@@ -143,7 +143,7 @@
                 @php
                   $zoneColor = $zoneColors[$schedule->area] ?? ['bg' => '#10B981', 'text' => '#FFFFFF', 'border' => '#059669'];
                 @endphp
-                <div class="py-4 schedule-item border-l-4" style="border-left-color: {{ $zoneColor['border'] }};" data-area="{{ Str::lower($schedule->area) }}" data-search="{{ Str::lower($schedule->area . ' ' . $schedule->days . ' ' . $schedule->truck) }}" data-zone-color="{{ $zoneColor['bg'] }}" data-zone-text="{{ $zoneColor['text'] }}">
+                <div class="py-4 schedule-item border-l-4" style="border-left-color: {{ $zoneColor['border'] }};" data-area="{{ Str::lower($schedule->area) }}" data-search="{{ Str::lower($schedule->area . ' ' . ($schedule->schedule_type === 'specific_date' ? $schedule->specific_date?->format('Y-m-d') : ($schedule->days ?? '')) . ' ' . $schedule->truck) }}" data-zone-color="{{ $zoneColor['bg'] }}" data-zone-text="{{ $zoneColor['text'] }}">
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                       <div class="w-4 h-4 rounded-full" style="background-color: {{ $zoneColor['bg'] }};"></div>
@@ -151,7 +151,17 @@
                     </div>
                     <span class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-green-100 text-green-800">{{ ucfirst($schedule->status) }}</span>
                   </div>
-                  <p class="text-sm text-gray-600 mt-1"><strong>Days:</strong> {{ $schedule->days }}</p>
+                  @if($schedule->schedule_type === 'specific_date')
+                    <p class="text-sm text-gray-600 mt-1">
+                      <strong>Date:</strong> 
+                      <span class="inline-flex items-center gap-1">
+                        <i class="fas fa-calendar-day text-blue-600"></i>
+                        {{ $schedule->specific_date?->format('M d, Y') }}
+                      </span>
+                    </p>
+                  @else
+                    <p class="text-sm text-gray-600 mt-1"><strong>Days:</strong> {{ $schedule->days }}</p>
+                  @endif
                   <p class="text-sm text-gray-600"><strong>Time:</strong> {{ $schedule->time_range }}</p>
                   <p class="text-sm text-gray-600"><strong>Truck:</strong> {{ $schedule->truck }}</p>
                 </div>
@@ -198,307 +208,487 @@
 @push('scripts')
   @php
     $scheduleData = $schedules->map(function ($schedule) use ($zoneColors) {
-        $days = collect(explode(',', $schedule->days))
-            ->map(function ($day) {
-                return strtolower(trim($day));
-            })
-            ->filter()
-            ->values();
-
-        $text = strtolower($schedule->days . ' ' . $schedule->area);
+        $text = strtolower(($schedule->days ?? '') . ' ' . $schedule->area);
         $wasteType = str_contains($text, 'biodegradable') ? 'Biodegradable'
             : (str_contains($text, 'non') ? 'Non-biodegradable'
             : (str_contains($text, 'recycl') ? 'Recyclables' : 'General'));
 
         $zoneColor = $zoneColors[$schedule->area] ?? ['bg' => '#10B981', 'text' => '#FFFFFF', 'border' => '#059669'];
 
-        return [
+        $data = [
             'area' => $schedule->area,
-            'days_list' => $days,
-            'days_label' => $schedule->days,
+            'schedule_type' => $schedule->schedule_type ?? 'recurring',
             'time_range' => $schedule->time_range,
             'truck' => $schedule->truck,
             'waste_type' => $wasteType,
             'zone_color' => $zoneColor,
         ];
+
+        if ($schedule->schedule_type === 'specific_date' && $schedule->specific_date) {
+            $data['specific_date'] = $schedule->specific_date->format('Y-m-d');
+            $data['days_list'] = [];
+            $data['days_label'] = $schedule->specific_date->format('M d, Y');
+        } else {
+            $days = collect(explode(',', $schedule->days ?? ''))
+                ->map(function ($day) {
+                    return strtolower(trim($day));
+                })
+                ->filter()
+                ->values();
+            $data['days_list'] = $days;
+            $data['days_label'] = $schedule->days ?? '';
+        }
+
+        return $data;
     });
   @endphp
   <script>
-    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    const calendar = document.getElementById("calendar");
-    const monthYear = document.getElementById("monthYear");
-    const prevMonth = document.getElementById("prevMonth");
-    const nextMonth = document.getElementById("nextMonth");
-    const areaFilter = document.getElementById("areaFilter");
-    const scheduleSearch = document.getElementById("scheduleSearch");
-    const scheduleItems = document.querySelectorAll(".schedule-item");
-    const serviceAreaSelect = document.getElementById('serviceAreaSelect');
-    const nextPickupData = @json($nextPickup);
-    const schedules = @json($scheduleData);
-    const zoneColorsMap = @json($zoneColors);
+    document.addEventListener('DOMContentLoaded', function() {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      const calendar = document.getElementById("calendar");
+      const monthYear = document.getElementById("monthYear");
+      const prevMonth = document.getElementById("prevMonth");
+      const nextMonth = document.getElementById("nextMonth");
+      const areaFilter = document.getElementById("areaFilter");
+      const scheduleSearch = document.getElementById("scheduleSearch");
+      const scheduleItems = document.querySelectorAll(".schedule-item");
+      const serviceAreaSelect = document.getElementById('serviceAreaSelect');
+      const nextPickupData = @json($nextPickup);
+      const schedules = @json($scheduleData);
+      const zoneColorsMap = @json($zoneColors);
 
-    let today = new Date();
-    let currentMonth = today.getMonth();
-    let currentYear = today.getFullYear();
-    let activeAreaFilter = 'all';
+      // Validate required elements exist
+      if (!calendar || !monthYear || !prevMonth || !nextMonth || !areaFilter || !scheduleSearch) {
+        console.error('Required calendar elements not found');
+        return;
+      }
+
+      let today = new Date();
+      let currentMonth = today.getMonth();
+      let currentYear = today.getFullYear();
+      let activeAreaFilter = 'all';
 
     const scheduleDayMap = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
+    const specificDateSchedules = [];
     const dayMap = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
 
-    schedules.forEach(schedule => {
-      schedule.days_list.forEach(day => {
-        if (dayMap[day] !== undefined) {
-          scheduleDayMap[dayMap[day]].push(schedule);
-        }
-      });
-    });
-
-    const renderCalendar = (month, year) => {
-      calendar.innerHTML = "";
-      const firstDay = new Date(year, month).getDay();
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-      weekdays.forEach(day => {
-        const div = document.createElement("div");
-        div.classList.add("p-3", "text-center", "font-bold", "bg-green-600", "text-white", "rounded-lg");
-        div.textContent = day;
-        calendar.appendChild(div);
-      });
-
-      for (let i = 0; i < firstDay; i++) {
-        const empty = document.createElement("div");
-        calendar.appendChild(empty);
+    if (Array.isArray(schedules)) {
+        schedules.forEach(schedule => {
+          if (schedule.schedule_type === 'specific_date' && schedule.specific_date) {
+            // Store specific date schedules separately
+            specificDateSchedules.push(schedule);
+          } else if (schedule.days_list && Array.isArray(schedule.days_list)) {
+            // Handle recurring schedules
+            schedule.days_list.forEach(day => {
+              if (dayMap[day] !== undefined) {
+                scheduleDayMap[dayMap[day]].push(schedule);
+              }
+            });
+          }
+        });
       }
+
+      const renderCalendar = (month, year) => {
+        if (!calendar || !monthYear) return;
+        
+        calendar.innerHTML = "";
+        const firstDay = new Date(year, month).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+        weekdays.forEach(day => {
+          const div = document.createElement("div");
+          div.classList.add("p-3", "text-center", "font-bold", "bg-green-600", "text-white", "rounded-lg");
+          div.textContent = day;
+          calendar.appendChild(div);
+        });
+
+        for (let i = 0; i < firstDay; i++) {
+          const empty = document.createElement("div");
+          calendar.appendChild(empty);
+        }
 
       for (let d = 1; d <= daysInMonth; d++) {
         const date = new Date(year, month, d);
         const div = document.createElement("div");
         const dayOfWeek = date.getDay();
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        
+        // Get recurring schedules for this day of week
         const daySchedules = scheduleDayMap[dayOfWeek] || [];
-        const filteredSchedules = daySchedules.filter(s => activeAreaFilter === 'all' || s.area === activeAreaFilter);
-        const summarySource = filteredSchedules.length ? filteredSchedules : daySchedules;
-
-        div.className = "p-4 text-center rounded-lg cursor-pointer transition-all duration-300 font-medium";
-        div.textContent = d;
-
-        if (summarySource.length) {
-          const summary = summarySource.map(item => `${item.area} (${item.time_range})`).join(" • ");
-          div.title = summary;
-        }
-
-        if (filteredSchedules.length) {
-          // Use zone color for the first schedule on this day
-          const firstSchedule = filteredSchedules[0];
-          const zoneColor = firstSchedule.zone_color || { bg: '#10B981', text: '#FFFFFF', border: '#059669' };
-          
-          // If multiple zones on same day, use gradient or first zone color
-          if (filteredSchedules.length > 1) {
-            // Multiple zones - use a gradient or the first zone's color with indicator
-            div.style.backgroundColor = zoneColor.bg;
-            div.style.color = zoneColor.text;
-            div.style.borderColor = zoneColor.border;
-            div.style.borderWidth = '2px';
-            div.style.borderStyle = 'solid';
-            div.classList.add('font-semibold', 'shadow-md');
-            div.title = `${filteredSchedules.length} zones scheduled`;
-          } else {
-            // Single zone - use its color
-            div.style.backgroundColor = zoneColor.bg;
-            div.style.color = zoneColor.text;
-            div.style.borderColor = zoneColor.border;
-            div.style.borderWidth = '2px';
-            div.style.borderStyle = 'solid';
-            div.classList.add('font-semibold', 'shadow-md');
+        
+        // Get specific date schedules for this exact date
+        const specificDateMatches = specificDateSchedules.filter(s => {
+          if (s.specific_date === dateStr) {
+            return activeAreaFilter === 'all' || s.area === activeAreaFilter;
           }
-        } else if (daySchedules.length) {
-          // Has schedules but filtered out - show muted
-          div.classList.add("bg-gray-100", "text-gray-600", "border", "border-gray-200");
-        } else {
-          // No schedules
-          div.classList.add("bg-gray-100", "hover:bg-gray-200", "hover:scale-105", "text-gray-800");
-        }
+          return false;
+        });
+        
+        // Combine both types
+        const allDaySchedules = [...daySchedules, ...specificDateMatches];
+        const filteredSchedules = allDaySchedules.filter(s => activeAreaFilter === 'all' || s.area === activeAreaFilter);
+        const summarySource = filteredSchedules.length ? filteredSchedules : allDaySchedules;
 
-        const isToday = d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-        if (isToday) {
-          div.classList.add("ring-2", "ring-green-500");
-        }
+          div.className = "p-4 text-center rounded-lg cursor-pointer transition-all duration-300 font-medium";
+          div.textContent = d;
 
-        if (summarySource.length) {
-          div.addEventListener('click', () => {
-            const listItems = summarySource.map(item => {
-              const zoneColor = item.zone_color || { bg: '#10B981', border: '#059669' };
-              return `
-                <div class="border-l-4 rounded-lg p-3 mb-2 bg-gray-50" style="border-left-color: ${zoneColor.border};">
-                  <div class="flex items-center gap-2 mb-2">
-                    <div class="w-3 h-3 rounded-full" style="background-color: ${zoneColor.bg};"></div>
-                    <p class="font-semibold text-gray-800">${item.area}</p>
+          if (summarySource.length) {
+            const summary = summarySource.map(item => `${item.area || 'Unknown'} (${item.time_range || 'N/A'})`).join(" • ");
+            div.title = summary;
+          }
+
+          if (filteredSchedules.length) {
+            // Use zone color for the first schedule on this day
+            const firstSchedule = filteredSchedules[0];
+            const zoneColor = firstSchedule.zone_color || { bg: '#10B981', text: '#FFFFFF', border: '#059669' };
+            
+            // If multiple zones on same day, use gradient or first zone color
+            if (filteredSchedules.length > 1) {
+              // Multiple zones - use a gradient or the first zone's color with indicator
+              div.style.backgroundColor = zoneColor.bg;
+              div.style.color = zoneColor.text;
+              div.style.borderColor = zoneColor.border;
+              div.style.borderWidth = '2px';
+              div.style.borderStyle = 'solid';
+              div.classList.add('font-semibold', 'shadow-md');
+              div.title = `${filteredSchedules.length} zones scheduled`;
+            } else {
+              // Single zone - use its color
+              div.style.backgroundColor = zoneColor.bg;
+              div.style.color = zoneColor.text;
+              div.style.borderColor = zoneColor.border;
+              div.style.borderWidth = '2px';
+              div.style.borderStyle = 'solid';
+              div.classList.add('font-semibold', 'shadow-md');
+            }
+          } else if (daySchedules.length) {
+            // Has schedules but filtered out - show muted
+            div.classList.add("bg-gray-100", "text-gray-600", "border", "border-gray-200");
+          } else {
+            // No schedules
+            div.classList.add("bg-gray-100", "hover:bg-gray-200", "hover:scale-105", "text-gray-800");
+          }
+
+          const isToday = d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+          if (isToday) {
+            div.classList.add("ring-2", "ring-green-500");
+          }
+
+          if (summarySource.length) {
+            div.addEventListener('click', () => {
+              const dayDetailsBody = document.getElementById('dayDetailsBody');
+              const dayDetailsModal = document.getElementById('dayDetailsModal');
+              
+              if (!dayDetailsBody || !dayDetailsModal) {
+                if (typeof showToast === 'function') {
+                  showToast('error', 'Unable to display day details.');
+                }
+                return;
+              }
+
+              const listItems = summarySource.map(item => {
+                const zoneColor = item.zone_color || { bg: '#10B981', border: '#059669' };
+                return `
+                  <div class="border-l-4 rounded-lg p-3 mb-2 bg-gray-50" style="border-left-color: ${zoneColor.border};">
+                    <div class="flex items-center gap-2 mb-2">
+                      <div class="w-3 h-3 rounded-full" style="background-color: ${zoneColor.bg};"></div>
+                      <p class="font-semibold text-gray-800">${item.area || 'Unknown'}</p>
+                    </div>
+                    <p class="text-sm text-gray-600">Days: ${item.days_label || 'N/A'}</p>
+                    <p class="text-sm text-gray-600">Time: ${item.time_range || 'N/A'}</p>
+                    <p class="text-sm text-gray-600">Truck: ${item.truck || 'N/A'}</p>
                   </div>
-                  <p class="text-sm text-gray-600">Days: ${item.days_label}</p>
-                  <p class="text-sm text-gray-600">Time: ${item.time_range}</p>
-                  <p class="text-sm text-gray-600">Truck: ${item.truck}</p>
-                </div>
-              `;
-            }).join('');
+                `;
+              }).join('');
 
-            document.getElementById('dayDetailsBody').innerHTML = listItems;
-            document.getElementById('dayDetailsTitle').textContent = `Pickups on ${date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}`;
-            openModal('dayDetailsModal');
-          });
+              dayDetailsBody.innerHTML = listItems;
+              
+              // Update modal title
+              const modalTitle = dayDetailsModal.querySelector('h5');
+              if (modalTitle) {
+                const icon = modalTitle.querySelector('i');
+                modalTitle.innerHTML = '';
+                if (icon) {
+                  modalTitle.appendChild(icon);
+                }
+                modalTitle.appendChild(document.createTextNode(`Pickups on ${date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}`));
+              }
+              
+              if (typeof openModal === 'function') {
+                openModal('dayDetailsModal');
+              }
+            });
+          }
+
+          calendar.appendChild(div);
         }
 
-        calendar.appendChild(div);
-      }
+        const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+        monthYear.textContent = `${monthNames[month]} ${year}`;
+      };
 
-      const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-      monthYear.textContent = `${monthNames[month]} ${year}`;
-    };
-
-    prevMonth.addEventListener("click", () => {
-      currentMonth--;
-      if (currentMonth < 0) {
-        currentMonth = 11;
-        currentYear--;
-      }
-      renderCalendar(currentMonth, currentYear);
-    });
-
-    nextMonth.addEventListener("click", () => {
-      currentMonth++;
-      if (currentMonth > 11) {
-        currentMonth = 0;
-        currentYear++;
-      }
-      renderCalendar(currentMonth, currentYear);
-    });
-
-    const applyScheduleFilters = () => {
-      const areaValue = areaFilter.value.toLowerCase();
-      const searchValue = scheduleSearch.value.trim().toLowerCase();
-
-      scheduleItems.forEach(item => {
-        const matchesArea = areaValue === 'all' || item.dataset.area === areaValue.toLowerCase();
-        const matchesSearch = !searchValue || item.dataset.search.includes(searchValue);
-        item.style.display = matchesArea && matchesSearch ? 'block' : 'none';
+      prevMonth.addEventListener("click", () => {
+        currentMonth--;
+        if (currentMonth < 0) {
+          currentMonth = 11;
+          currentYear--;
+        }
+        renderCalendar(currentMonth, currentYear);
       });
-    };
 
-    areaFilter.addEventListener('change', () => {
-      activeAreaFilter = areaFilter.value === 'all' ? 'all' : areaFilter.value;
+      nextMonth.addEventListener("click", () => {
+        currentMonth++;
+        if (currentMonth > 11) {
+          currentMonth = 0;
+          currentYear++;
+        }
+        renderCalendar(currentMonth, currentYear);
+      });
+
+      const applyScheduleFilters = () => {
+        if (!areaFilter || !scheduleSearch) return;
+        
+        const areaValue = areaFilter.value.toLowerCase();
+        const searchValue = scheduleSearch.value.trim().toLowerCase();
+
+        scheduleItems.forEach(item => {
+          const matchesArea = areaValue === 'all' || item.dataset.area === areaValue.toLowerCase();
+          const matchesSearch = !searchValue || (item.dataset.search && item.dataset.search.includes(searchValue));
+          item.style.display = matchesArea && matchesSearch ? 'block' : 'none';
+        });
+      };
+
+      areaFilter.addEventListener('change', () => {
+        activeAreaFilter = areaFilter.value === 'all' ? 'all' : areaFilter.value;
+        applyScheduleFilters();
+        renderCalendar(currentMonth, currentYear);
+      });
+
+      scheduleSearch.addEventListener('input', applyScheduleFilters);
+
+      if (serviceAreaSelect && csrfToken) {
+        serviceAreaSelect.addEventListener('change', () => {
+          const selectedArea = serviceAreaSelect.value || null;
+          
+          fetch('{{ route('garbage-schedule.service-area') }}', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-TOKEN': csrfToken,
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify({ service_area: selectedArea }),
+          })
+            .then(response => {
+              if (!response.ok) {
+                return response.json().then(err => Promise.reject(err));
+              }
+              return response.json();
+            })
+            .then(() => {
+              // Reload to show updated next pickup info
+              window.location.reload();
+            })
+            .catch((error) => {
+              console.error('Service area update error:', error);
+              if (typeof showToast === 'function') {
+                const errorMessage = error.message || 'Unable to update your zone. Please try again.';
+                showToast('error', errorMessage);
+              }
+            });
+        });
+      }
+
+      const reminderToggles = document.querySelectorAll('.reminder-toggle');
+      const sendReminderUpdate = () => {
+        if (!csrfToken || reminderToggles.length < 3) return;
+        
+        const payload = {
+          email_notifications: reminderToggles[0]?.checked ? 1 : 0,
+          sms_notifications: reminderToggles[1]?.checked ? 1 : 0,
+          push_notifications: reminderToggles[2]?.checked ? 1 : 0,
+        };
+
+        fetch('{{ route('garbage-schedule.notifications') }}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfToken,
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        })
+          .then(response => {
+            if (!response.ok) {
+              return response.json().then(err => Promise.reject(err));
+            }
+            return response.json();
+          })
+          .then(() => {
+            if (typeof showToast === 'function') {
+              showToast('success', 'Reminder preferences saved.');
+            }
+          })
+          .catch((error) => {
+            console.error('Notification update error:', error);
+            if (typeof showToast === 'function') {
+              const errorMessage = error.message || 'Unable to save reminder preferences.';
+              showToast('error', errorMessage);
+            }
+          });
+      };
+      reminderToggles.forEach(toggle => toggle.addEventListener('change', sendReminderUpdate));
+
+      const formatIcsDate = (date) => {
+        try {
+          return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        } catch (e) {
+          console.error('Error formatting ICS date:', e);
+          return new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        }
+      };
+
+      const generateIcs = () => {
+        if (!nextPickupData || !nextPickupData.datetime_iso) {
+          if (typeof showToast === 'function') {
+            showToast('info', 'Select your area first to add a reminder.');
+          }
+          return null;
+        }
+        
+        try {
+          const start = new Date(nextPickupData.datetime_iso);
+          if (isNaN(start.getTime())) {
+            throw new Error('Invalid date');
+          }
+          const end = new Date(start.getTime() + 60 * 60 * 1000);
+          
+          return [
+            'BEGIN:VCALENDAR',
+            'VERSION:2.0',
+            'PRODID:-//Cleanify//Schedule//EN',
+            'BEGIN:VEVENT',
+            `UID:${Date.now()}@cleanify`,
+            `DTSTAMP:${formatIcsDate(new Date())}`,
+            `DTSTART:${formatIcsDate(start)}`,
+            `DTEND:${formatIcsDate(end)}`,
+            `SUMMARY:Garbage pickup - ${nextPickupData.area || 'Your Area'}`,
+            `DESCRIPTION:Truck ${nextPickupData.truck || 'N/A'} · ${nextPickupData.waste_type || 'General'}`,
+            'END:VEVENT',
+            'END:VCALENDAR',
+          ].join('\r\n');
+        } catch (e) {
+          console.error('Error generating ICS:', e);
+          if (typeof showToast === 'function') {
+            showToast('error', 'Unable to generate calendar file.');
+          }
+          return null;
+        }
+      };
+
+      const downloadIcsFile = (filename) => {
+        const ics = generateIcs();
+        if (!ics) return;
+        
+        try {
+          const blob = new Blob([ics], { type: 'text/calendar' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          
+          if (typeof showToast === 'function') {
+            showToast('success', 'Calendar file downloaded successfully.');
+          }
+        } catch (e) {
+          console.error('Error downloading ICS:', e);
+          if (typeof showToast === 'function') {
+            showToast('error', 'Unable to download calendar file.');
+          }
+        }
+      };
+
+      const addToCalendarBtn = document.getElementById('addToCalendarBtn');
+      if (addToCalendarBtn) {
+        addToCalendarBtn.addEventListener('click', () => {
+          downloadIcsFile('cleanify-pickup.ics');
+        });
+      }
+
+      const downloadIcsBtn = document.getElementById('downloadIcsBtn');
+      if (downloadIcsBtn) {
+        downloadIcsBtn.addEventListener('click', () => {
+          downloadIcsFile('cleanify-schedule.ics');
+        });
+      }
+
+      const printScheduleBtn = document.getElementById('printScheduleBtn');
+      if (printScheduleBtn) {
+        printScheduleBtn.addEventListener('click', () => {
+          window.print();
+        });
+      }
+
+      const shareScheduleBtn = document.getElementById('shareScheduleBtn');
+      if (shareScheduleBtn) {
+        shareScheduleBtn.addEventListener('click', async () => {
+          const shareData = {
+            title: 'Cleanify Schedule',
+            text: 'Here is the latest garbage collection schedule.',
+            url: window.location.href,
+          };
+          
+          if (navigator.share) {
+            try {
+              await navigator.share(shareData);
+            } catch (err) {
+              // User cancelled or error occurred
+              if (err.name !== 'AbortError' && typeof showToast === 'function') {
+                showToast('error', 'Unable to share schedule.');
+              }
+            }
+          } else if (navigator.clipboard) {
+            try {
+              await navigator.clipboard.writeText(window.location.href);
+              if (typeof showToast === 'function') {
+                showToast('success', 'Link copied to clipboard.');
+              }
+            } catch (err) {
+              console.error('Clipboard error:', err);
+              if (typeof showToast === 'function') {
+                showToast('error', 'Unable to copy link to clipboard.');
+              }
+            }
+          } else {
+            // Fallback: select text in a temporary input
+            const input = document.createElement('input');
+            input.value = window.location.href;
+            document.body.appendChild(input);
+            input.select();
+            try {
+              document.execCommand('copy');
+              document.body.removeChild(input);
+              if (typeof showToast === 'function') {
+                showToast('success', 'Link copied to clipboard.');
+              }
+            } catch (err) {
+              document.body.removeChild(input);
+              if (typeof showToast === 'function') {
+                showToast('error', 'Unable to copy link. Please copy manually.');
+              }
+            }
+          }
+        });
+      }
+
       applyScheduleFilters();
       renderCalendar(currentMonth, currentYear);
     });
-
-    scheduleSearch.addEventListener('input', applyScheduleFilters);
-
-    serviceAreaSelect?.addEventListener('change', () => {
-      fetch('{{ route('garbage-schedule.service-area') }}', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': csrfToken,
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({ service_area: serviceAreaSelect.value || null }),
-      })
-        .then(response => response.ok ? window.location.reload() : Promise.reject())
-        .catch(() => showToast?.('error', 'Unable to update your zone. Please try again.'));
-    });
-
-    const reminderToggles = document.querySelectorAll('.reminder-toggle');
-    const sendReminderUpdate = () => {
-      const payload = {
-        email_notifications: reminderToggles[0].checked ? 1 : 0,
-        sms_notifications: reminderToggles[1].checked ? 1 : 0,
-        push_notifications: reminderToggles[2].checked ? 1 : 0,
-      };
-
-      fetch('{{ route('garbage-schedule.notifications') }}', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': csrfToken,
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
-        .then(response => response.ok ? response.json() : Promise.reject())
-        .then(() => showToast?.('success', 'Reminder preferences saved.'))
-        .catch(() => showToast?.('error', 'Unable to save reminder preferences.'));
-    };
-    reminderToggles.forEach(toggle => toggle.addEventListener('change', sendReminderUpdate));
-
-    const formatIcsDate = (date) => date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-
-    const generateIcs = () => {
-      if (!nextPickupData) {
-        showToast?.('info', 'Select your area first to add a reminder.');
-        return null;
-      }
-      const start = new Date(nextPickupData.datetime_iso);
-      const end = new Date(start.getTime() + 60 * 60 * 1000);
-      return [
-        'BEGIN:VCALENDAR',
-        'VERSION:2.0',
-        'PRODID:-//Cleanify//Schedule//EN',
-        'BEGIN:VEVENT',
-        `UID:${Date.now()}@cleanify`,
-        `DTSTAMP:${formatIcsDate(new Date())}`,
-        `DTSTART:${formatIcsDate(start)}`,
-        `DTEND:${formatIcsDate(end)}`,
-        `SUMMARY:Garbage pickup - ${nextPickupData.area}`,
-        `DESCRIPTION:Truck ${nextPickupData.truck} · ${nextPickupData.waste_type}`,
-        'END:VEVENT',
-        'END:VCALENDAR',
-      ].join('\r\n');
-    };
-
-    document.getElementById('addToCalendarBtn')?.addEventListener('click', () => {
-      const ics = generateIcs();
-      if (!ics) return;
-      const blob = new Blob([ics], { type: 'text/calendar' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'cleanify-pickup.ics';
-      link.click();
-      URL.revokeObjectURL(url);
-    });
-
-    document.getElementById('downloadIcsBtn')?.addEventListener('click', () => {
-      const ics = generateIcs();
-      if (!ics) return;
-      const blob = new Blob([ics], { type: 'text/calendar' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'cleanify-schedule.ics';
-      link.click();
-      URL.revokeObjectURL(url);
-    });
-
-    document.getElementById('printScheduleBtn')?.addEventListener('click', () => window.print());
-
-    document.getElementById('shareScheduleBtn')?.addEventListener('click', async () => {
-      const shareData = {
-        title: 'Cleanify Schedule',
-        text: 'Here is the latest garbage collection schedule.',
-        url: window.location.href,
-      };
-      if (navigator.share) {
-        try {
-          await navigator.share(shareData);
-        } catch (_) {
-          // user cancelled
-        }
-      } else {
-        await navigator.clipboard.writeText(window.location.href);
-        showToast?.('success', 'Link copied to clipboard.');
-      }
-    });
-
-    applyScheduleFilters();
-    renderCalendar(currentMonth, currentYear);
   </script>
 @endpush
 

@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Client;
 use App\Http\Controllers\Controller;
 use App\Models\Report;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ProfileController extends Controller
@@ -38,36 +40,57 @@ class ProfileController extends Controller
     /**
      * Update the user's profile information.
      */
-    public function update(Request $request)
+    public function update(Request $request): JsonResponse|RedirectResponse
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email,' . Auth::id()],
-            'phone' => ['nullable', 'string', 'max:20'],
-            'address' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        $user = Auth::user();
-        $user->name = $validated['name'];
-        $user->email = $validated['email'];
-        $user->phone = $validated['phone'] ?? null;
-        $user->address = $validated['address'] ?? null;
-        $user->save();
-
-        if ($request->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Profile updated successfully',
-                'user' => [
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'phone' => $user->phone,
-                    'address' => $user->address,
-                ],
+        // Check if request wants JSON (AJAX request) - check early
+        $wantsJson = $request->expectsJson() 
+            || $request->wantsJson() 
+            || $request->ajax()
+            || $request->header('X-Requested-With') === 'XMLHttpRequest'
+            || $request->header('Accept') === 'application/json';
+        
+        try {
+            // Validate with proper error handling
+            $validated = $request->validate([
+                'name' => ['required', 'string', 'max:255'],
+                'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email,' . Auth::id()],
+                'phone' => ['nullable', 'string', 'max:20'],
+                'address' => ['nullable', 'string', 'max:255'],
             ]);
-        }
 
-        return redirect()->route('profile')->with('success', 'Profile updated successfully');
+            $user = Auth::user();
+            $user->name = $validated['name'];
+            $user->email = $validated['email'];
+            $user->phone = $validated['phone'] ?? null;
+            $user->address = $validated['address'] ?? null;
+            $user->save();
+
+            if ($wantsJson) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Profile updated successfully',
+                    'user' => [
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'phone' => $user->phone,
+                        'address' => $user->address,
+                    ],
+                ]);
+            }
+
+            return redirect()->route('profile')->with('success', 'Profile updated successfully');
+        } catch (ValidationException $e) {
+            // If it's an AJAX request, return JSON with validation errors
+            if ($wantsJson) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $e->errors(),
+                ], 422);
+            }
+            // Otherwise, let Laravel handle the redirect with errors
+            throw $e;
+        }
     }
 
     /**

@@ -25,6 +25,7 @@ class User extends Authenticatable
         'phone',
         'address',
         'is_admin',
+        'banned_at',
         'email_notifications',
         'sms_notifications',
         'push_notifications',
@@ -59,6 +60,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_admin' => 'boolean',
+            'banned_at' => 'datetime',
             'email_notifications' => 'boolean',
             'sms_notifications' => 'boolean',
             'push_notifications' => 'boolean',
@@ -75,6 +77,14 @@ class User extends Authenticatable
     public function isAdmin(): bool
     {
         return $this->is_admin === true;
+    }
+
+    /**
+     * Check if the user is banned.
+     */
+    public function isBanned(): bool
+    {
+        return $this->banned_at !== null;
     }
 
     /**

@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\StoreScheduleRequest;
 use App\Http\Requests\Admin\UpdateScheduleRequest;
 use App\Models\Schedule;
 use App\Models\Truck;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -26,7 +27,8 @@ class ScheduleController extends Controller
             $query->where(function($q) use ($search) {
                 $q->where('area', 'like', "%{$search}%")
                   ->orWhere('days', 'like', "%{$search}%")
-                  ->orWhere('truck', 'like', "%{$search}%");
+                  ->orWhere('truck', 'like', "%{$search}%")
+                  ->orWhere('schedule_type', 'like', "%{$search}%");
             });
         }
 
@@ -68,14 +70,19 @@ class ScheduleController extends Controller
      */
     public function store(StoreScheduleRequest $request): RedirectResponse
     {
-        Schedule::create([
+        $schedule = Schedule::create([
             'area' => $request->area,
-            'days' => $request->days,
+            'schedule_type' => $request->schedule_type,
+            'specific_date' => $request->schedule_type === 'specific_date' ? $request->specific_date : null,
+            'days' => $request->schedule_type === 'recurring' ? $request->days : null,
             'time_start' => $request->time_start,
             'time_end' => $request->time_end,
             'truck' => $request->truck,
             'status' => $request->status,
         ]);
+
+        // Notify users in the schedule area
+        $this->notifyUsersAboutSchedule($schedule);
 
         return redirect()->route('admin.schedule')
             ->with('success', 'Schedule created successfully!');
@@ -87,15 +94,24 @@ class ScheduleController extends Controller
     public function update(UpdateScheduleRequest $request, string $id): RedirectResponse
     {
         $schedule = Schedule::findOrFail($id);
+        $oldArea = $schedule->area;
+        $areaChanged = $oldArea !== $request->area;
 
         $schedule->update([
             'area' => $request->area,
-            'days' => $request->days,
+            'schedule_type' => $request->schedule_type,
+            'specific_date' => $request->schedule_type === 'specific_date' ? $request->specific_date : null,
+            'days' => $request->schedule_type === 'recurring' ? $request->days : null,
             'time_start' => $request->time_start,
             'time_end' => $request->time_end,
             'truck' => $request->truck,
             'status' => $request->status,
         ]);
+
+        // Notify users if area changed or schedule was activated
+        if ($areaChanged || ($schedule->status === 'active' && $schedule->wasChanged('status'))) {
+            $this->notifyUsersAboutSchedule($schedule);
+        }
 
         return redirect()->route('admin.schedule')
             ->with('success', 'Schedule updated successfully!');
@@ -111,5 +127,34 @@ class ScheduleController extends Controller
 
         return redirect()->route('admin.schedule')
             ->with('success', 'Schedule deleted successfully!');
+    }
+
+    /**
+     * Notify users about a new or updated schedule.
+     */
+    protected function notifyUsersAboutSchedule(Schedule $schedule): void
+    {
+        if ($schedule->status !== 'active') {
+            return; // Only notify for active schedules
+        }
+
+        // Get users in the schedule area
+        $users = User::where('service_area', $schedule->area)
+            ->where('is_admin', false)
+            ->get();
+
+        foreach ($users as $user) {
+            // Check if user has schedule notifications enabled
+            $preferences = $user->notification_preferences ?? [];
+            $scheduleEnabled = $preferences['schedule'] ?? true;
+
+            if ($scheduleEnabled) {
+                try {
+                    $user->notify(new \App\Notifications\ScheduleCreatedNotification($schedule));
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Failed to notify user about schedule: ' . $e->getMessage());
+                }
+            }
+        }
     }
 }
