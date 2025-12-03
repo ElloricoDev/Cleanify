@@ -76,7 +76,17 @@
                 @endif
               </td>
               <td class="px-4 py-3 text-gray-600">{{ $schedule->time_range }}</td>
-              <td class="px-4 py-3 text-gray-600">{{ $schedule->truck }}</td>
+              @php
+                // Find the matching truck by its code so we can show code + driver
+                $assignedTruck = $trucks->firstWhere('code', $schedule->truck);
+              @endphp
+              <td class="px-4 py-3 text-gray-600">
+                @if($assignedTruck)
+                  {{ $assignedTruck->code }}@if($assignedTruck->driver) - {{ $assignedTruck->driver }}@endif
+                @else
+                  {{ $schedule->truck }}
+                @endif
+              </td>
               <td class="px-4 py-3">
                 <span class="{{ $schedule->getStatusBadgeClass() }} text-xs font-medium px-2.5 py-0.5 rounded-full">
                   <i class="fas fa-circle text-xs mr-1"></i>{{ $schedule->formatted_status }}
